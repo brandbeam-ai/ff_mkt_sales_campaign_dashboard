@@ -139,15 +139,15 @@ export async function fetchAndCacheFunnelData() {
     const bookACall = getData(bookACallResult);
 
     const data = {
-      sentEmailLog: sentEmailLog.map((r) => r.fields),
-      emailInteractions: emailInteractions.map((r) => r.fields),
-      dmReplied: dmReplied.map((r) => r.fields),
-      linkedinDMLog: linkedinDMLog.map((r) => r.fields),
-      leadList: leadList.map((r) => r.fields),
-      deckAnalysisInteractions: deckAnalysisInteractions.map((r) => r.fields),
-      deckReports: deckReports.map((r) => r.fields),
-      ffInteractions: ffInteractions.map((r) => r.fields),
-      bookACall: bookACall.map((r) => r.fields),
+      sentEmailLog: sentEmailLog.map((r: { fields: unknown }) => r.fields),
+      emailInteractions: emailInteractions.map((r: { fields: unknown }) => r.fields),
+      dmReplied: dmReplied.map((r: { fields: unknown }) => r.fields),
+      linkedinDMLog: linkedinDMLog.map((r: { fields: unknown }) => r.fields),
+      leadList: leadList.map((r: { fields: unknown }) => r.fields),
+      deckAnalysisInteractions: deckAnalysisInteractions.map((r: { fields: unknown }) => r.fields),
+      deckReports: deckReports.map((r: { fields: unknown }) => r.fields),
+      ffInteractions: ffInteractions.map((r: { fields: unknown }) => r.fields),
+      bookACall: bookACall.map((r: { fields: unknown }) => r.fields),
       lastUpdated: new Date().toISOString(),
     };
 

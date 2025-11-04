@@ -58,22 +58,38 @@ export default function MetricSection({
         <MetricCard
           title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Current Week' : `${title} - Current Week`}
           week={String(latestMetric.week || '')}
-          value={typeof latestMetric.value === 'number' ? latestMetric.value : (typeof latestMetric.value === 'string' ? parseFloat(latestMetric.value) || 0 : 0)}
+          value={(() => {
+            const currentValue = latestMetric.value;
+            if (typeof currentValue === 'number') {
+              return currentValue;
+            } else if (typeof currentValue === 'string') {
+              return parseFloat(currentValue) || 0;
+            }
+            return 0;
+          })()}
           percentage={showPercentage && typeof latestMetric.percentage === 'number' ? latestMetric.percentage : undefined}
           change={typeof latestMetric.change === 'number' ? latestMetric.change : undefined}
           unit={unit}
           formatValue={formatValue}
         />
-        {validMetrics.length > 1 && (
-          <MetricCard
-            title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Previous Week' : `${title} - Previous Week`}
-            week={String(validMetrics[validMetrics.length - 2].week || '')}
-            value={typeof validMetrics[validMetrics.length - 2].value === 'number' ? validMetrics[validMetrics.length - 2].value : (typeof validMetrics[validMetrics.length - 2].value === 'string' ? parseFloat(validMetrics[validMetrics.length - 2].value) || 0 : 0)}
-            percentage={showPercentage && typeof validMetrics[validMetrics.length - 2].percentage === 'number' ? validMetrics[validMetrics.length - 2].percentage : undefined}
-            unit={unit}
-            formatValue={formatValue}
-          />
-        )}
+                {validMetrics.length > 1 && (
+                  <MetricCard
+                    title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Previous Week' : `${title} - Previous Week`}
+                    week={String(validMetrics[validMetrics.length - 2].week || '')}
+                    value={(() => {
+                      const prevValue = validMetrics[validMetrics.length - 2].value;
+                      if (typeof prevValue === 'number') {
+                        return prevValue;
+                      } else if (typeof prevValue === 'string') {
+                        return parseFloat(prevValue) || 0;
+                      }
+                      return 0;
+                    })()}
+                    percentage={showPercentage && typeof validMetrics[validMetrics.length - 2].percentage === 'number' ? validMetrics[validMetrics.length - 2].percentage : undefined}
+                    unit={unit}
+                    formatValue={formatValue}
+                  />
+                )}
       </div>
       {showChart && validMetrics.length > 0 && (
         <div className="mb-6">

@@ -61,10 +61,15 @@ function calculateEmailMetricsBySequence(
 
   // Calculate week-over-week change
   for (let i = 1; i < metrics.length; i++) {
-    metrics[i].previousWeek = metrics[i - 1].value;
-    metrics[i].change = metrics[i].previousWeek > 0
-      ? ((metrics[i].value - metrics[i].previousWeek) / metrics[i].previousWeek) * 100
-      : 0;
+    const currentMetric = metrics[i];
+    const previousMetric = metrics[i - 1];
+    if (currentMetric && previousMetric) {
+      const previousWeekValue = previousMetric.value;
+      currentMetric.previousWeek = previousWeekValue;
+      currentMetric.change = previousWeekValue > 0
+        ? ((currentMetric.value - previousWeekValue) / previousWeekValue) * 100
+        : 0;
+    }
   }
 
   return metrics;
@@ -154,10 +159,15 @@ function calculateEmailInteractionMetricsByTag(
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   for (let i = 1; i < metrics.length; i++) {
-    metrics[i].previousWeek = metrics[i - 1].value;
-    metrics[i].change = metrics[i].previousWeek > 0
-      ? ((metrics[i].value - metrics[i].previousWeek) / metrics[i].previousWeek) * 100
-      : 0;
+    const currentMetric = metrics[i];
+    const previousMetric = metrics[i - 1];
+    if (currentMetric && previousMetric) {
+      const previousWeekValue = previousMetric.value;
+      currentMetric.previousWeek = previousWeekValue;
+      currentMetric.change = previousWeekValue > 0
+        ? ((currentMetric.value - previousWeekValue) / previousWeekValue) * 100
+        : 0;
+    }
   }
 
   return metrics;
@@ -297,10 +307,15 @@ export function calculateDMMetrics(linkedinDMLog: any[]): Metric[] {
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   for (let i = 1; i < metrics.length; i++) {
-    metrics[i].previousWeek = metrics[i - 1].value;
-    metrics[i].change = metrics[i].previousWeek > 0
-      ? ((metrics[i].value - metrics[i].previousWeek) / metrics[i].previousWeek) * 100
-      : 0;
+    const currentMetric = metrics[i];
+    const previousMetric = metrics[i - 1];
+    if (currentMetric && previousMetric) {
+      const previousWeekValue = previousMetric.value;
+      currentMetric.previousWeek = previousWeekValue;
+      currentMetric.change = previousWeekValue > 0
+        ? ((currentMetric.value - previousWeekValue) / previousWeekValue) * 100
+        : 0;
+    }
   }
 
   return metrics;
@@ -349,10 +364,15 @@ export function calculateOrganicLeads(leadList: any[]): Metric[] {
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   for (let i = 1; i < metrics.length; i++) {
-    metrics[i].previousWeek = metrics[i - 1].value;
-    metrics[i].change = metrics[i].previousWeek > 0
-      ? ((metrics[i].value - metrics[i].previousWeek) / metrics[i].previousWeek) * 100
-      : 0;
+    const currentMetric = metrics[i];
+    const previousMetric = metrics[i - 1];
+    if (currentMetric && previousMetric) {
+      const previousWeekValue = previousMetric.value;
+      currentMetric.previousWeek = previousWeekValue;
+      currentMetric.change = previousWeekValue > 0
+        ? ((currentMetric.value - previousWeekValue) / previousWeekValue) * 100
+        : 0;
+    }
   }
 
   return metrics;
@@ -417,10 +437,15 @@ export function calculateLeadMagnetMetrics(
   // Calculate WoW changes
   [landedMetrics, avgDurationMetrics, submissionMetrics].forEach((metrics) => {
     for (let i = 1; i < metrics.length; i++) {
-      metrics[i].previousWeek = metrics[i - 1].value;
-      metrics[i].change = metrics[i].previousWeek > 0
-        ? ((metrics[i].value - metrics[i].previousWeek) / metrics[i].previousWeek) * 100
-        : 0;
+      const currentMetric = metrics[i];
+      const previousMetric = metrics[i - 1];
+      if (currentMetric && previousMetric) {
+        const previousWeekValue = previousMetric.value;
+        currentMetric.previousWeek = previousWeekValue;
+        currentMetric.change = previousWeekValue > 0
+          ? ((currentMetric.value - previousWeekValue) / previousWeekValue) * 100
+          : 0;
+      }
     }
   });
 
@@ -489,10 +514,15 @@ export function calculateSalesFunnelMetrics(
   // Calculate WoW changes
   [landedMetrics, avgDurationMetrics, clicksMetrics, clickToLandedMetrics].forEach((metrics) => {
     for (let i = 1; i < metrics.length; i++) {
-      metrics[i].previousWeek = metrics[i - 1].value;
-      metrics[i].change = metrics[i].previousWeek > 0
-        ? ((metrics[i].value - metrics[i].previousWeek) / metrics[i].previousWeek) * 100
-        : 0;
+      const currentMetric = metrics[i];
+      const previousMetric = metrics[i - 1];
+      if (currentMetric && previousMetric) {
+        const previousWeekValue = previousMetric.value;
+        currentMetric.previousWeek = previousWeekValue;
+        currentMetric.change = previousWeekValue > 0
+          ? ((currentMetric.value - previousWeekValue) / previousWeekValue) * 100
+          : 0;
+      }
     }
   });
 
