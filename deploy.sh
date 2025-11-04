@@ -62,38 +62,7 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-echo -e "${YELLOW}📦 Pulling latest code from GitHub...${NC}"
-git pull origin main || git pull origin master
-
-echo -e "${YELLOW}📥 Installing dependencies...${NC}"
-npm install --production=false
-
-echo -e "${YELLOW}🔧 Building Next.js application...${NC}"
-echo -e "${YELLOW}   Note: Next.js will use environment variables from .env.local${NC}"
-# Ensure environment variables are available during build
-export $(cat .env.local | grep -v '^#' | xargs) 2>/dev/null || true
-npm run build
-
-echo -e "\n${YELLOW}🔄 Updating cache BEFORE starting app (fetching fresh data from Airtable)...${NC}"
-echo -e "${YELLOW}   This ensures the dashboard has data on first load${NC}"
-# Load environment variables for cache update
-export $(cat .env.local | grep -v '^#' | xargs) 2>/dev/null || true
-
-# Try to update cache (this is critical - fail if it doesn't work)
-if npm run update-cache; then
-    echo -e "${GREEN}✅ Cache updated successfully before app start${NC}"
-else
-    echo -e "${RED}❌ Cache update failed! This is required for the dashboard to work.${NC}"
-    echo -e "${YELLOW}   Checking if cache file exists...${NC}"
-    if [ -f "data/funnel-data.json" ]; then
-        echo -e "${YELLOW}   Cache file exists, but update failed. Continuing with existing cache...${NC}"
-    else
-        echo -e "${RED}   No cache file found. The dashboard will not have data!${NC}"
-        echo -e "${YELLOW}   You may need to start the app first, then manually run: npm run update-cache${NC}"
-    fi
-fi
-
-# Check if .env.local exists
+# Check if .env.local exists (BEFORE doing anything else)
 if [ ! -f .env.local ]; then
     echo -e "${RED}❌ Error: .env.local file not found!${NC}"
     echo -e "${RED}   The build requires .env.local with AIRTABLE_API_KEY and other required variables.${NC}"
@@ -108,7 +77,50 @@ if ! grep -q "AIRTABLE_API_KEY=" .env.local || grep -q "^AIRTABLE_API_KEY=$" .en
     exit 1
 fi
 
-echo -e "${GREEN}✅ Environment variables file (.env.local) found${NC}"
+echo -e "${GREEN}✅ Environment variables file (.env.local) found and validated${NC}"
+
+# Load environment variables for the entire deployment
+export $(cat .env.local | grep -v '^#' | xargs) 2>/dev/null || true
+
+echo -e "${YELLOW}📦 Pulling latest code from GitHub...${NC}"
+git pull origin main || git pull origin master
+
+echo -e "${YELLOW}📥 Installing dependencies...${NC}"
+npm install --production=false
+
+echo -e "${YELLOW}🔧 Building Next.js application...${NC}"
+echo -e "${YELLOW}   Note: Next.js will use environment variables from .env.local${NC}"
+npm run build
+
+echo -e "\n${YELLOW}🔄 Updating cache BEFORE starting app (fetching fresh data from Airtable)...${NC}"
+echo -e "${YELLOW}   This ensures the dashboard has data on first load${NC}"
+echo -e "${YELLOW}   This is CRITICAL - the dashboard needs this cache to display data${NC}"
+
+# Update cache directly using the standalone script (doesn't require server to be running)
+if npm run update-cache; then
+    echo -e "${GREEN}✅ Cache updated successfully before app start${NC}"
+    
+    # Verify cache file was created
+    if [ -f "data/funnel-data.json" ]; then
+        CACHE_SIZE=$(wc -c < data/funnel-data.json 2>/dev/null || echo "0")
+        echo -e "${GREEN}✅ Cache file verified: data/funnel-data.json (${CACHE_SIZE} bytes)${NC}"
+    else
+        echo -e "${RED}⚠️  Warning: Cache update succeeded but cache file not found${NC}"
+    fi
+else
+    echo -e "${RED}❌ Cache update failed! This is required for the dashboard to work.${NC}"
+    echo -e "${YELLOW}   Checking if cache file exists...${NC}"
+    if [ -f "data/funnel-data.json" ]; then
+        echo -e "${YELLOW}   Cache file exists, but update failed. Continuing with existing cache...${NC}"
+    else
+        echo -e "${RED}   No cache file found. The dashboard will not have data!${NC}"
+        echo -e "${YELLOW}   Troubleshooting:${NC}"
+        echo -e "${YELLOW}   1. Check AIRTABLE_API_KEY is correct in .env.local${NC}"
+        echo -e "${YELLOW}   2. Check network connectivity to Airtable${NC}"
+        echo -e "${YELLOW}   3. Try manually: npm run update-cache${NC}"
+        echo -e "${YELLOW}   Continuing deployment, but dashboard may be empty...${NC}"
+    fi
+fi
 
 # Stop existing PM2 process if it exists
 if pm2 list | grep -q "$PM2_APP_NAME"; then
@@ -178,6 +190,24 @@ if pm2 list | grep -q "$PM2_APP_NAME.*online"; then
     
     echo -e "\n${GREEN}🌐 Application should be accessible at: http://localhost:$APP_PORT${NC}"
     echo -e "${GREEN}   (Configure your reverse proxy/nginx to point to this port)${NC}"
+    
+    # Now that server is running, update the cache via API endpoint
+    echo -e "\n${YELLOW}🔄 Updating cache via API endpoint (server is now running)...${NC}"
+    echo -e "${YELLOW}   This will fetch fresh data from Airtable${NC}"
+    
+    # Wait a bit more for server to be fully ready
+    sleep 5
+    
+    # Try to update cache via API
+    if curl -f -s "http://localhost:$APP_PORT/api/update-cache" > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Cache update request sent successfully${NC}"
+        sleep 3  # Wait for cache to be written
+    else
+        echo -e "${YELLOW}⚠️  Cache update via API failed, trying npm script...${NC}"
+        # Try npm script which will use the API endpoint
+        npm run update-cache 2>/dev/null || echo -e "${YELLOW}   npm script also failed, will try again in cron${NC}"
+    fi
+    
 else
     echo -e "${RED}❌ Application failed to start. Check logs with: pm2 logs $PM2_APP_NAME${NC}"
     exit 1
@@ -186,13 +216,21 @@ fi
 # Verify cache was created/updated
 echo -e "\n${YELLOW}📊 Verifying cache status...${NC}"
 if [ -f "data/funnel-data.json" ]; then
-    CACHE_SIZE=$(wc -c < data/funnel-data.json)
+    CACHE_SIZE=$(wc -c < data/funnel-data.json 2>/dev/null || echo "0")
     CACHE_DATE=$(stat -c %y data/funnel-data.json 2>/dev/null || stat -f %Sm data/funnel-data.json 2>/dev/null || echo "unknown")
     echo -e "${GREEN}✅ Cache file exists (${CACHE_SIZE} bytes, last updated: ${CACHE_DATE})${NC}"
+    
+    # Check if cache has data
+    if [ "$CACHE_SIZE" -gt 100 ]; then
+        echo -e "${GREEN}✅ Cache file appears to have data (${CACHE_SIZE} bytes)${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Warning: Cache file is very small (${CACHE_SIZE} bytes), may be empty${NC}"
+    fi
 else
     echo -e "${RED}⚠️  Warning: Cache file not found at data/funnel-data.json${NC}"
-    echo -e "${YELLOW}   The dashboard may not display data until cache is updated${NC}"
+    echo -e "${YELLOW}   The dashboard will not display data until cache is updated${NC}"
     echo -e "${YELLOW}   You can manually update cache by running: npm run update-cache${NC}"
+    echo -e "${YELLOW}   Or wait for the scheduled cron job at 2:00 AM${NC}"
 fi
 
 # Setup cron job for daily cache updates
@@ -250,4 +288,5 @@ echo -e "\n${GREEN}🌐 Access your application:${NC}"
 echo -e "  ${YELLOW}Local:${NC} http://localhost:$APP_PORT"
 echo -e "  ${YELLOW}External:${NC} http://$(hostname -I | awk '{print $1}'):$APP_PORT"
 echo -e "  ${YELLOW}Or use your server's IP address${NC}"
+
 

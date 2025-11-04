@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3022",
     "lint": "eslint",
-    "update-cache": "node scripts/update-cache.js",
+    "update-cache": "node scripts/update-cache-direct.js",
     "deploy": "bash deploy.sh"
   },
   "dependencies": {
