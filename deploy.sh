@@ -69,6 +69,9 @@ echo -e "${YELLOW}📥 Installing dependencies...${NC}"
 npm install --production=false
 
 echo -e "${YELLOW}🔧 Building Next.js application...${NC}"
+echo -e "${YELLOW}   Note: Next.js will use environment variables from .env.local${NC}"
+# Ensure environment variables are available during build
+export $(cat .env.local | grep -v '^#' | xargs) 2>/dev/null || true
 npm run build
 
 echo -e "${YELLOW}🔄 Updating cache (fetching fresh data from Airtable)...${NC}"
@@ -77,9 +80,20 @@ sleep 2
 
 # Check if .env.local exists
 if [ ! -f .env.local ]; then
-    echo -e "${YELLOW}⚠️  Warning: .env.local file not found.${NC}"
-    echo -e "${YELLOW}   Make sure to create .env.local with AIRTABLE_API_KEY and other required variables.${NC}"
+    echo -e "${RED}❌ Error: .env.local file not found!${NC}"
+    echo -e "${RED}   The build requires .env.local with AIRTABLE_API_KEY and other required variables.${NC}"
+    echo -e "${YELLOW}   Please create .env.local file before deploying.${NC}"
+    exit 1
 fi
+
+# Verify AIRTABLE_API_KEY is set
+if ! grep -q "AIRTABLE_API_KEY=" .env.local || grep -q "^AIRTABLE_API_KEY=$" .env.local; then
+    echo -e "${RED}❌ Error: AIRTABLE_API_KEY is not set in .env.local!${NC}"
+    echo -e "${YELLOW}   Please add AIRTABLE_API_KEY=your-key-here to .env.local${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Environment variables file (.env.local) found${NC}"
 
 # Stop existing PM2 process if it exists
 if pm2 list | grep -q "$PM2_APP_NAME"; then
