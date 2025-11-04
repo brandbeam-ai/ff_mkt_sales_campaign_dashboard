@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cached data
+/data
+
+# PM2 logs
+/logs
+*.log
+
+# Cron scripts (keep update-cache-cron.sh in git, but ignore if auto-generated)
+# update-cache-cron.sh
