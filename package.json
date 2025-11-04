@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start -p 3021",
+    "start": "next start -p 3022",
     "lint": "eslint",
     "update-cache": "node scripts/update-cache.js",
     "deploy": "bash deploy.sh"

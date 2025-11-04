@@ -10,8 +10,8 @@ module.exports = {
     max_memory_restart: '1G',
     env: {
       NODE_ENV: 'production',
-      PORT: 3021,
-      NEXT_PUBLIC_BASE_URL: 'http://localhost:3021'
+      PORT: 3022,
+      NEXT_PUBLIC_BASE_URL: 'http://localhost:3022'
     },
     error_file: './logs/pm2-error.log',
     out_file: './logs/pm2-out.log',

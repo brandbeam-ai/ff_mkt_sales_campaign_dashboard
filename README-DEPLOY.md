@@ -57,7 +57,7 @@ Add your environment variables:
 ```env
 AIRTABLE_API_KEY=your-api-key-here
 AIRTABLE_BASE_ID=app0YMWSt1LtrGu7S
-NEXT_PUBLIC_BASE_URL=http://your-domain.com:3021
+NEXT_PUBLIC_BASE_URL=http://your-domain.com:3022
 # or if using reverse proxy:
 # NEXT_PUBLIC_BASE_URL=http://your-domain.com
 ```
@@ -185,7 +185,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:3021;
+        proxy_pass http://localhost:3022;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -267,11 +267,11 @@ crontab -l | grep -v "update-cache-cron.sh" | crontab -
    cat .env.local
    ```
 
-3. Check if port 3021 is available:
+3. Check if port 3022 is available:
    ```bash
-   sudo netstat -tulpn | grep 3021
+   sudo netstat -tulpn | grep 3022
    # or
-   sudo ss -tulpn | grep 3021
+   sudo ss -tulpn | grep 3022
    ```
 
 ### Build Fails

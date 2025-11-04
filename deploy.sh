@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Deployment script for Next.js app on Vultr server
-# App runs on port 3021 and is managed by PM2
+# App runs on port 3022 and is managed by PM2
 
 set -e  # Exit on error
 
@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 APP_NAME="ff_mkt_sale_dashboard"
-APP_PORT=3021
+APP_PORT=3022
 PM2_APP_NAME="ff-mkt-sale-dashboard"
 NODE_ENV="production"
 
@@ -31,7 +31,7 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# Configure firewall (ufw) to allow port 3021
+# Configure firewall (ufw) to allow port 3022
 echo -e "${YELLOW}🔥 Configuring firewall (ufw) to allow port $APP_PORT...${NC}"
 if command -v ufw &> /dev/null; then
     # Check if ufw is active
