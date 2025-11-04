@@ -31,6 +31,33 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
+# Configure firewall (ufw) to allow port 3021
+echo -e "${YELLOW}🔥 Configuring firewall (ufw) to allow port $APP_PORT...${NC}"
+if command -v ufw &> /dev/null; then
+    # Check if ufw is active
+    if ufw status | grep -q "Status: active"; then
+        echo -e "${YELLOW}   UFW is active, checking if port $APP_PORT is already allowed...${NC}"
+        if ufw status | grep -q "$APP_PORT"; then
+            echo -e "${GREEN}✅ Port $APP_PORT is already allowed in UFW${NC}"
+        else
+            echo -e "${YELLOW}   Adding port $APP_PORT to UFW...${NC}"
+            ufw allow $APP_PORT/tcp || echo -e "${YELLOW}⚠️  Could not add port to UFW (may need sudo)${NC}"
+            echo -e "${GREEN}✅ Port $APP_PORT added to UFW${NC}"
+        fi
+    else
+        echo -e "${YELLOW}   UFW is not active. Enabling UFW and allowing port $APP_PORT...${NC}"
+        ufw allow $APP_PORT/tcp || echo -e "${YELLOW}⚠️  Could not add port to UFW (may need sudo)${NC}"
+        ufw --force enable || echo -e "${YELLOW}⚠️  Could not enable UFW (may need sudo)${NC}"
+        echo -e "${GREEN}✅ UFW enabled and port $APP_PORT allowed${NC}"
+    fi
+    echo -e "${YELLOW}   Current UFW status:${NC}"
+    ufw status | head -5
+else
+    echo -e "${YELLOW}⚠️  UFW is not installed. Skipping firewall configuration.${NC}"
+    echo -e "${YELLOW}   To install UFW: sudo apt-get install ufw${NC}"
+    echo -e "${YELLOW}   To manually allow port: sudo ufw allow $APP_PORT/tcp${NC}"
+fi
+
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
@@ -182,6 +209,7 @@ echo -e "\n${GREEN}✅ Deployment completed successfully!${NC}"
 echo -e "\n${GREEN}📋 Summary:${NC}"
 echo -e "  ${YELLOW}•${NC} Application running on port $APP_PORT"
 echo -e "  ${YELLOW}•${NC} PM2 process: $PM2_APP_NAME"
+echo -e "  ${YELLOW}•${NC} Firewall: Port $APP_PORT configured in UFW"
 echo -e "  ${YELLOW}•${NC} Daily cache update: Scheduled for 2:00 AM"
 echo -e "  ${YELLOW}•${NC} Cache update logs: $SCRIPT_DIR/logs/cache-update.log"
 echo -e "\n${GREEN}📝 Useful commands:${NC}"
@@ -189,4 +217,9 @@ echo -e "  ${YELLOW}pm2 logs $PM2_APP_NAME${NC}              - View app logs"
 echo -e "  ${YELLOW}tail -f $SCRIPT_DIR/logs/cache-update.log${NC}  - View cache update logs"
 echo -e "  ${YELLOW}crontab -l${NC}                         - View cron jobs"
 echo -e "  ${YELLOW}npm run update-cache${NC}                - Manually update cache"
+echo -e "  ${YELLOW}ufw status${NC}                          - Check firewall status"
+echo -e "\n${GREEN}🌐 Access your application:${NC}"
+echo -e "  ${YELLOW}Local:${NC} http://localhost:$APP_PORT"
+echo -e "  ${YELLOW}External:${NC} http://$(hostname -I | awk '{print $1}'):$APP_PORT"
+echo -e "  ${YELLOW}Or use your server's IP address${NC}"
 
