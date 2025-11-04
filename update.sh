@@ -5,7 +5,7 @@
 
 set -e
 
-APP_NAME="ff_mkt_sale_dashboard"
+APP_NAME="ff-mkt-sale-dashboard"
 
 echo "🔄 Starting quick update for Marketing & Sales Funnel Dashboard..."
 
