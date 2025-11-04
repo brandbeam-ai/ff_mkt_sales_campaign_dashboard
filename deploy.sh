@@ -74,9 +74,24 @@ echo -e "${YELLOW}   Note: Next.js will use environment variables from .env.loca
 export $(cat .env.local | grep -v '^#' | xargs) 2>/dev/null || true
 npm run build
 
-echo -e "${YELLOW}🔄 Updating cache (fetching fresh data from Airtable)...${NC}"
-# Wait a moment for the build to complete
-sleep 2
+echo -e "\n${YELLOW}🔄 Updating cache BEFORE starting app (fetching fresh data from Airtable)...${NC}"
+echo -e "${YELLOW}   This ensures the dashboard has data on first load${NC}"
+# Load environment variables for cache update
+export $(cat .env.local | grep -v '^#' | xargs) 2>/dev/null || true
+
+# Try to update cache (this is critical - fail if it doesn't work)
+if npm run update-cache; then
+    echo -e "${GREEN}✅ Cache updated successfully before app start${NC}"
+else
+    echo -e "${RED}❌ Cache update failed! This is required for the dashboard to work.${NC}"
+    echo -e "${YELLOW}   Checking if cache file exists...${NC}"
+    if [ -f "data/funnel-data.json" ]; then
+        echo -e "${YELLOW}   Cache file exists, but update failed. Continuing with existing cache...${NC}"
+    else
+        echo -e "${RED}   No cache file found. The dashboard will not have data!${NC}"
+        echo -e "${YELLOW}   You may need to start the app first, then manually run: npm run update-cache${NC}"
+    fi
+fi
 
 # Check if .env.local exists
 if [ ! -f .env.local ]; then
@@ -168,17 +183,16 @@ else
     exit 1
 fi
 
-# Update cache after deployment
-echo -e "\n${YELLOW}🔄 Updating data cache (initial fetch)...${NC}"
-echo -e "${YELLOW}   This will fetch fresh data from Airtable.${NC}"
-# Wait for app to be fully started before updating cache
-sleep 5
-
-# Try to update cache (best effort, don't fail deployment if this fails)
-if npm run update-cache 2>/dev/null; then
-    echo -e "${GREEN}✅ Initial cache update completed${NC}"
+# Verify cache was created/updated
+echo -e "\n${YELLOW}📊 Verifying cache status...${NC}"
+if [ -f "data/funnel-data.json" ]; then
+    CACHE_SIZE=$(wc -c < data/funnel-data.json)
+    CACHE_DATE=$(stat -c %y data/funnel-data.json 2>/dev/null || stat -f %Sm data/funnel-data.json 2>/dev/null || echo "unknown")
+    echo -e "${GREEN}✅ Cache file exists (${CACHE_SIZE} bytes, last updated: ${CACHE_DATE})${NC}"
 else
-    echo -e "${YELLOW}⚠️  Cache update failed (this is okay, it will be scheduled for daily updates)${NC}"
+    echo -e "${RED}⚠️  Warning: Cache file not found at data/funnel-data.json${NC}"
+    echo -e "${YELLOW}   The dashboard may not display data until cache is updated${NC}"
+    echo -e "${YELLOW}   You can manually update cache by running: npm run update-cache${NC}"
 fi
 
 # Setup cron job for daily cache updates
