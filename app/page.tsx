@@ -207,7 +207,6 @@ export default function Dashboard() {
                     </InfoBox>
                     
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">MKT Outreach - Sent</h4>
                       <MetricSection
                         title="MKT Outreach - Sent"
                         metrics={mktOutreachMetrics}
@@ -219,7 +218,6 @@ export default function Dashboard() {
                     </div>
 
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Outreach Emails - Opens & Clicks</h4>
                       <MetricSection
                         title="Outreach Emails - Opens & Clicks"
                         metrics={outreachEmailInteractionMetrics}
@@ -252,7 +250,6 @@ export default function Dashboard() {
                     </InfoBox>
                     
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Nurture Emails - Sent</h4>
                       <MetricSection
                         title="Nurture Emails - Sent"
                         metrics={nurtureEmailMetrics}
@@ -264,7 +261,6 @@ export default function Dashboard() {
                     </div>
 
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Nurture Emails - Opens & Clicks</h4>
                       <MetricSection
                         title="Nurture Emails - Opens & Clicks"
                         metrics={nurtureEmailInteractionMetrics}
@@ -305,7 +301,6 @@ export default function Dashboard() {
                       chartType="line"
                     />
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Lead Replied Conversations</h4>
                       <MetricSection
                         title="Lead Replied Conversations"
                         metrics={dmLeadRepliedMetrics}
@@ -315,7 +310,6 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Followup Conversations</h4>
                       <MetricSection
                         title="Followup Conversations"
                         metrics={dmFollowupMetrics}
@@ -343,7 +337,6 @@ export default function Dashboard() {
               </ul>
             </InfoBox>
             <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">Lead Magnet Leads</h4>
               <MetricSection
                 title="Lead Magnet Leads"
                 metrics={leadMagnetLeadsMetrics}
@@ -353,7 +346,6 @@ export default function Dashboard() {
               />
             </div>
             <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">Book a Call Leads</h4>
               <MetricSection
                 title="Book a Call Leads"
                 metrics={bookACallLeadsMetrics}
@@ -382,7 +374,6 @@ export default function Dashboard() {
                       </ul>
                     </InfoBox>
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Landed</h4>
                       <MetricSection
                         title="Landed"
                         metrics={leadMagnetMetrics.landed}
@@ -393,7 +384,6 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Unique Lead Visitors</h4>
                       <MetricSection
                         title="Unique Lead Visitors"
                         metrics={leadMagnetMetrics.uniqueVisits}
@@ -404,7 +394,6 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Avg. Session Duration</h4>
                       <MetricSection
                         title="Avg. Session Duration"
                         metrics={leadMagnetMetrics.avgDuration}
@@ -415,7 +404,6 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Deck Submission</h4>
                       <MetricSection
                         title="Deck Submission"
                         metrics={leadMagnetMetrics.submissions}
@@ -425,9 +413,8 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Analysis Result Email Interactions</h4>
                       <MetricSection
-                        title="Analysis Result Emails - Opens & Clicks"
+                        title="Analysis Result Email Interactions"
                         metrics={analysisResultEmailInteractionMetrics}
                         showPercentage={false}
                         unit="opens"
@@ -467,7 +454,6 @@ export default function Dashboard() {
               chartType="line"
             />
             <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">Unique Lead Visitors</h4>
               <MetricSection
                 title="Unique Lead Visitors"
                 metrics={salesFunnelMetrics.uniqueVisits}
@@ -495,14 +481,15 @@ export default function Dashboard() {
                 This section tracks the final conversion step in your sales funnel:
               </p>
               <ul className="list-disc list-inside space-y-1">
-                <li><strong>Total Clicks:</strong> Number of times the &quot;Book a Call&quot; button was clicked on the FF landing page</li>
-                <li><strong>% Landed over Clicked:</strong> Conversion rate from button click to actual call booking completion</li>
-                <li><strong>How it works:</strong> The metric calculates (Bookings Completed ÷ Button Clicks) × 100</li>
-                <li><strong>What it means:</strong> Of all visitors who clicked the &quot;Book a Call&quot; button, what percentage actually completed the booking process?</li>
-                <li><strong>Example:</strong> If 100 people clicked the button and 4 completed bookings, the conversion rate is 4%</li>
-                <li>A lower percentage may indicate friction in the booking flow (e.g., complex form, long process, technical issues) that needs optimization</li>
-                <li>A higher percentage indicates a smooth booking experience and effective call-to-action</li>
-                <li>Track week-over-week trends to identify if changes to the booking flow improve or worsen conversion rates</li>
+                <li><strong>Total Clicks:</strong> Number of times the &quot;Book a Call&quot; button was clicked on the FF landing page (counted in the week the click occurred)</li>
+                <li><strong>% of Section vs Click Book a Call:</strong> Click-through rate showing what percentage of visitors who landed on the FF landing page clicked the &quot;Book a Call&quot; button</li>
+                <li><strong>How it works:</strong> The metric calculates (Button Clicks ÷ Landed Sessions) × 100</li>
+                <li><strong>What it means:</strong> Of all visitors who landed on the FF landing page in a given week, what percentage clicked the &quot;Book a Call&quot; button?</li>
+                <li><strong>Example:</strong> If 1000 people landed on the FF landing page and 50 clicked the &quot;Book a Call&quot; button, the click-through rate is 5%</li>
+                <li><strong>Why this matters:</strong> This metric measures the effectiveness of your call-to-action. A higher percentage indicates that visitors are interested and engaged enough to click the button.</li>
+                <li>A lower percentage may indicate that the button placement, visibility, or messaging needs improvement</li>
+                <li>A higher percentage indicates a strong call-to-action and good visitor engagement</li>
+                <li>Track week-over-week trends to identify if changes to the landing page or button improve or worsen click-through rates</li>
                 <li>Note: This metric will continue to be tracked until the &quot;Book a Call&quot; feature is officially removed</li>
               </ul>
             </InfoBox>
@@ -514,7 +501,7 @@ export default function Dashboard() {
               chartType="bar"
             />
             <MetricSection
-              title="% Landed over Clicked"
+              title="% of Section vs Click Book a Call"
               metrics={salesFunnelMetrics.clickToLanded}
               showPercentage={false}
               unit="%"

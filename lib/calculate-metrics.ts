@@ -881,9 +881,21 @@ export function calculateSalesFunnelMetrics(
   const bookingsWeekMap = new Map<string, number>();
 
   // Process Book a Call data to count actual bookings completed
+  // Only count records that have a valid week start date
+  // Note: Currently counting ALL records. If Meeting Status filtering is needed,
+  // we should filter by status values like "Scheduled", "Completed", "Confirmed", etc.
+  // and exclude "Cancelled", "No-show", etc.
   bookACall.forEach((record) => {
     const weekStart = record['Week start of report date'];
     if (!weekStart) return;
+
+    // TODO: Add Meeting Status filter if needed
+    // const meetingStatus = record['Meeting Status'] || '';
+    // const statusLower = meetingStatus.toLowerCase();
+    // // Only count completed/scheduled bookings, exclude cancelled/no-show
+    // if (statusLower.includes('cancel') || statusLower.includes('no-show')) {
+    //   return; // Skip cancelled/no-show bookings
+    // }
 
     if (!bookingsWeekMap.has(weekStart)) {
       bookingsWeekMap.set(weekStart, 0);
@@ -958,14 +970,16 @@ export function calculateSalesFunnelMetrics(
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
-  // Calculate % Landed over Clicked: (Actual bookings completed / Clicks on button) * 100
+  // Calculate % of Section vs Click Book a Call: (Clicks on button / Landed sessions) * 100
+  // This shows what percentage of people who landed on the FF landing page clicked the "Book a Call" button
   const clickToLandedMetrics: Metric[] = Array.from(landedWeekMap.entries())
     .map(([week, data]) => {
-      const bookingsCompleted = bookingsWeekMap.get(week) || 0;
+      // Calculate click-through rate: (Clicks ÷ Landed sessions) × 100
+      const percentage = data.count > 0 ? (data.clicks / data.count) * 100 : 0;
       return {
         week,
-        value: data.clicks > 0 ? (bookingsCompleted / data.clicks) * 100 : 0,
-        percentage: data.clicks > 0 ? (bookingsCompleted / data.clicks) * 100 : 0,
+        value: percentage,
+        percentage: percentage,
       };
     })
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));

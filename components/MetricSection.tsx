@@ -2,7 +2,7 @@
 
 import MetricCard from './MetricCard';
 import MetricChart from './MetricChart';
-import { formatWeekRange } from '@/lib/utils';
+import { formatWeekRange, sortWeeksChronologically } from '@/lib/utils';
 import { Metric } from '@/lib/calculate-metrics';
 
 interface MetricSectionProps {
@@ -31,23 +31,27 @@ export default function MetricSection({
   // Filter out invalid metrics and ensure we have valid data
   const validMetrics = metrics.filter((m) => m && typeof m.week === 'string' && (typeof m.value === 'number' || typeof m.value === 'string'));
   
-  if (validMetrics.length === 0) {
+  // Sort metrics chronologically by week (DD/MM/YYYY format)
+  const sortedMetrics = [...validMetrics].sort((a, b) => sortWeeksChronologically(a.week, b.week));
+  
+  if (sortedMetrics.length === 0) {
     return (
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">{title}</h2>
+        <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
         <p className="text-gray-500">No data available</p>
       </div>
     );
   }
 
   // Get the latest week or use currentWeek
-  const latestWeek = currentWeek || (validMetrics.length > 0 ? validMetrics[validMetrics.length - 1].week : '');
-  const latestMetric = validMetrics.find((m) => m.week === latestWeek) || validMetrics[validMetrics.length - 1];
+  // The last item in the sorted array is the most recent week
+  const latestWeek = currentWeek || (sortedMetrics.length > 0 ? sortedMetrics[sortedMetrics.length - 1].week : '');
+  const latestMetric = sortedMetrics.find((m) => m.week === latestWeek) || sortedMetrics[sortedMetrics.length - 1];
 
   if (!latestMetric || !latestMetric.week || (typeof latestMetric.value !== 'number' && typeof latestMetric.value !== 'string')) {
     return (
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">{title}</h2>
+        <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
         <p className="text-gray-500">No valid data available</p>
       </div>
     );
@@ -55,7 +59,7 @@ export default function MetricSection({
 
   return (
     <div className="mb-8">
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">{title}</h2>
+      <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <MetricCard
           title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Current Week' : `${title} - Current Week`}
@@ -81,37 +85,41 @@ export default function MetricSection({
                   uniqueEmailsClicked={typeof latestMetric.uniqueEmailsClicked === 'number' ? latestMetric.uniqueEmailsClicked : undefined}
                   uniqueLeads={typeof latestMetric.uniqueLeads === 'number' ? latestMetric.uniqueLeads : undefined}
                 />
-                {validMetrics.length > 1 && (
-                  <MetricCard
-                    title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Previous Week' : `${title} - Previous Week`}
-                    week={String(validMetrics[validMetrics.length - 2].week || '')}
-                    value={(() => {
-                      const prevValue = validMetrics[validMetrics.length - 2].value;
-                      if (typeof prevValue === 'number') {
-                        return prevValue;
-                      } else if (typeof prevValue === 'string') {
-                        return parseFloat(prevValue) || 0;
-                      }
-                      return 0;
-                    })()}
-                    percentage={showPercentage && typeof validMetrics[validMetrics.length - 2].percentage === 'number' ? validMetrics[validMetrics.length - 2].percentage : undefined}
-                    percentageLabel={percentageLabel}
-                    unit={unit}
-                    formatValue={formatValue}
-                            uniqueEmails={typeof validMetrics[validMetrics.length - 2].uniqueEmails === 'number' ? validMetrics[validMetrics.length - 2].uniqueEmails : undefined}
-                            avgInteractionsPerLead={typeof validMetrics[validMetrics.length - 2].avgInteractionsPerLead === 'number' ? validMetrics[validMetrics.length - 2].avgInteractionsPerLead : undefined}
-                            clicked={typeof validMetrics[validMetrics.length - 2].clicked === 'number' ? validMetrics[validMetrics.length - 2].clicked : undefined}
-                            uniqueEmailsOpened={typeof validMetrics[validMetrics.length - 2].uniqueEmailsOpened === 'number' ? validMetrics[validMetrics.length - 2].uniqueEmailsOpened : undefined}
-                            uniqueEmailsClicked={typeof validMetrics[validMetrics.length - 2].uniqueEmailsClicked === 'number' ? validMetrics[validMetrics.length - 2].uniqueEmailsClicked : undefined}
-                            uniqueLeads={typeof validMetrics[validMetrics.length - 2].uniqueLeads === 'number' ? validMetrics[validMetrics.length - 2].uniqueLeads : undefined}
-                          />
-                )}
+                {sortedMetrics.length > 1 && (() => {
+                  // Get the previous week metric (second-to-last in chronologically sorted array)
+                  const previousMetric = sortedMetrics[sortedMetrics.length - 2];
+                  return (
+                    <MetricCard
+                      title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Previous Week' : `${title} - Previous Week`}
+                      week={String(previousMetric.week || '')}
+                      value={(() => {
+                        const prevValue = previousMetric.value;
+                        if (typeof prevValue === 'number') {
+                          return prevValue;
+                        } else if (typeof prevValue === 'string') {
+                          return parseFloat(prevValue) || 0;
+                        }
+                        return 0;
+                      })()}
+                      percentage={showPercentage && typeof previousMetric.percentage === 'number' ? previousMetric.percentage : undefined}
+                      percentageLabel={percentageLabel}
+                      unit={unit}
+                      formatValue={formatValue}
+                      uniqueEmails={typeof previousMetric.uniqueEmails === 'number' ? previousMetric.uniqueEmails : undefined}
+                      avgInteractionsPerLead={typeof previousMetric.avgInteractionsPerLead === 'number' ? previousMetric.avgInteractionsPerLead : undefined}
+                      clicked={typeof previousMetric.clicked === 'number' ? previousMetric.clicked : undefined}
+                      uniqueEmailsOpened={typeof previousMetric.uniqueEmailsOpened === 'number' ? previousMetric.uniqueEmailsOpened : undefined}
+                      uniqueEmailsClicked={typeof previousMetric.uniqueEmailsClicked === 'number' ? previousMetric.uniqueEmailsClicked : undefined}
+                      uniqueLeads={typeof previousMetric.uniqueLeads === 'number' ? previousMetric.uniqueLeads : undefined}
+                    />
+                  );
+                })()}
       </div>
-      {showChart && validMetrics.length > 0 && (
+      {showChart && sortedMetrics.length > 0 && (
         <div className="mb-6">
           <MetricChart
             title={`${title} - Growth Over Time`}
-            metrics={validMetrics}
+            metrics={sortedMetrics}
             type={chartType}
             showPercentage={showPercentage}
             formatValue={formatValue}
