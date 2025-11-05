@@ -194,8 +194,14 @@ export default function Dashboard() {
                         This section tracks MKT Outreach email campaigns and their engagement:
                       </p>
                       <ul className="list-disc list-inside space-y-1">
-                        <li><strong>MKT Outreach - Sent:</strong> Outbound marketing emails sent to new leads</li>
-                        <li><strong>Outreach Emails - Opens & Clicks:</strong> Engagement metrics for MKT Outreach emails</li>
+                        <li><strong>MKT Outreach - Sent:</strong> Total number of outbound marketing emails sent (each record = 1 email). Also shows unique leads who received emails. One lead can receive multiple emails per week.</li>
+                        <li><strong>Outreach Emails - Opens & Clicks:</strong> Engagement metrics for MKT Outreach emails filtered by <code className="bg-gray-100 px-1 rounded">mailgun_tags</code> containing &quot;outreach&quot; or &quot;mkt outreach&quot;</li>
+                        <li><strong>Opens:</strong> Total number of email open events (main metric shown)</li>
+                        <li><strong>Clicks:</strong> Total number of email click events (shown in card)</li>
+                        <li><strong>Unique Leads Opened:</strong> Number of unique email addresses that opened emails (shown in card and chart tooltip)</li>
+                        <li><strong>Unique Leads Clicked:</strong> Number of unique email addresses that clicked links (shown in card and chart tooltip)</li>
+                        <li><strong>% Clicked over Opened:</strong> Click-through rate from opens to clicks (shown in chart tooltip)</li>
+                        <li>Charts display the latest 12 weeks of data for better trend visualization</li>
                         <li>Data is tracked week-over-week to monitor campaign performance and engagement rates</li>
                       </ul>
                     </InfoBox>
@@ -233,8 +239,14 @@ export default function Dashboard() {
                         This section tracks Nurture email campaigns and their engagement:
                       </p>
                       <ul className="list-disc list-inside space-y-1">
-                        <li><strong>Nurture Emails - Sent:</strong> Follow-up emails to nurture existing leads (General Nurture, Win-back Sequence)</li>
-                        <li><strong>Nurture Emails - Opens & Clicks:</strong> Engagement metrics for Nurture sequence emails</li>
+                        <li><strong>Nurture Emails - Sent:</strong> Total number of follow-up emails sent to nurture existing leads (General Nurture, Win-back Sequence). Also shows unique leads who received emails. One lead can receive multiple emails per week.</li>
+                        <li><strong>Nurture Emails - Opens & Clicks:</strong> Engagement metrics for Nurture sequence emails filtered by <code className="bg-gray-100 px-1 rounded">mailgun_tags</code> containing &quot;nurture&quot;, &quot;win-back&quot;, or &quot;general nurture&quot;</li>
+                        <li><strong>Opens:</strong> Total number of email open events (main metric shown)</li>
+                        <li><strong>Clicks:</strong> Total number of email click events (shown in card)</li>
+                        <li><strong>Unique Leads Opened:</strong> Number of unique email addresses that opened emails (shown in card and chart tooltip)</li>
+                        <li><strong>Unique Leads Clicked:</strong> Number of unique email addresses that clicked links (shown in card and chart tooltip)</li>
+                        <li><strong>% Clicked over Opened:</strong> Click-through rate from opens to clicks (shown in chart tooltip)</li>
+                        <li>Charts display the latest 12 weeks of data for better trend visualization</li>
                         <li>Data is tracked week-over-week to monitor nurture campaign performance</li>
                       </ul>
                     </InfoBox>
@@ -272,14 +284,14 @@ export default function Dashboard() {
                         This section tracks LinkedIn Direct Message outreach and engagement:
                       </p>
                       <ul className="list-disc list-inside space-y-1">
-                        <li><strong>New DMs Conversation Start:</strong> Number of unique new conversations started each week where you sent the first DM</li>
-                        <li><strong>How it works:</strong> The dashboard uses <code className="bg-gray-100 px-1 rounded">Conversation_id</code> to identify unique conversations and counts each conversation in the week it first appeared</li>
-                        <li><strong>Lead Replied:</strong> Number of new conversations where the lead responded (multiple senders in the conversation)</li>
+                        <li><strong>New DMs Conversation Start:</strong> Number of unique new conversations started each week where you sent the first DM. Uses <code className="bg-gray-100 px-1 rounded">Conversation_id</code> to identify unique conversations and counts each conversation in the week it first appeared.</li>
+                        <li><strong>Lead Replied:</strong> Number of new conversations where the lead responded (identified by multiple unique senders in the conversation)</li>
                         <li><strong>No Reply:</strong> New conversations where only you sent messages (lead didn&apos;t respond)</li>
-                        <li><strong>% Lead Replied over DMed:</strong> Response rate for new conversations (engagement quality metric)</li>
-                        <li><strong>Lead Replied Conversations:</strong> Total number of unique conversations where leads responded (tracked in the week they first appeared)</li>
-                        <li><strong>Followup Conversations:</strong> Number of conversations where you sent a followup DM after the lead replied (measures ongoing engagement)</li>
-                        <li><strong>Note:</strong> A conversation is only counted once, in the week it first appears. Subsequent messages in the same conversation are not counted as new conversations</li>
+                        <li><strong>% Lead Replied over DMed:</strong> Response rate for new conversations (Lead Replied ÷ New DMs) × 100. This is an engagement quality metric.</li>
+                        <li><strong>Lead Replied Conversations:</strong> Total number of unique conversations where leads responded, tracked in the week the conversation first appeared. A conversation is counted as &quot;replied&quot; if it has multiple unique senders (meaning both you and the lead sent messages).</li>
+                        <li><strong>Followup Conversations:</strong> Number of conversations where you sent a followup DM after the lead replied. This measures ongoing engagement - it counts conversations where ME sent a message AFTER the lead first replied.</li>
+                        <li><strong>Note:</strong> A conversation is only counted once, in the week it first appears. Subsequent messages in the same conversation are not counted as new conversations.</li>
+                        <li>Charts display the latest 12 weeks of data for better trend visualization</li>
                         <li>The detailed breakdown below shows message counts by sender (You vs. Correspondent) and identifies the most active conversations</li>
                       </ul>
                     </InfoBox>
@@ -323,9 +335,10 @@ export default function Dashboard() {
                 This section tracks leads that come to you organically (not from outbound campaigns):
               </p>
               <ul className="list-disc list-inside space-y-1">
-                <li><strong>Lead Magnet:</strong> Leads who discovered you through lead magnet content</li>
-                <li><strong>Book a Call:</strong> Leads who directly requested a call without being contacted first</li>
+                <li><strong>Lead Magnet Leads:</strong> Count of leads from the <code className="bg-gray-100 px-1 rounded">Lead list</code> table where <code className="bg-gray-100 px-1 rounded">Source</code> = &quot;Lead magnet&quot;. These are leads who discovered you through lead magnet content.</li>
+                <li><strong>Book a Call Leads:</strong> Count of leads from the <code className="bg-gray-100 px-1 rounded">Lead list</code> table where <code className="bg-gray-100 px-1 rounded">Source</code> = &quot;Book a call&quot;. These are leads who directly requested a call without being contacted first.</li>
                 <li>These leads represent inbound interest and are typically higher quality than outbound leads</li>
+                <li>Charts display the latest 12 weeks of data for better trend visualization</li>
                 <li>Tracked week-over-week to monitor organic growth and brand awareness</li>
               </ul>
             </InfoBox>
@@ -359,12 +372,12 @@ export default function Dashboard() {
                         This section tracks the performance of your lead magnet landing pages (deck analysis tools):
                       </p>
                       <ul className="list-disc list-inside space-y-1">
-                        <li><strong>Landed:</strong> Number of unique sessions on the lead magnet landing page</li>
-                        <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources.</li>
-                        <li><strong>Avg. Session Duration:</strong> Average time visitors spend on the page (engagement indicator)</li>
-                        <li><strong>Deck Submission:</strong> Number of pitch decks submitted for analysis (conversion metric)</li>
-                        <li><strong>Analysis Result Email Interactions:</strong> Opens and clicks on lead magnet deck analysis report emails</li>
-                        <li>Higher session duration indicates better content engagement and lead quality</li>
+                        <li><strong>Landed:</strong> Total number of unique sessions on the lead magnet landing page (each <code className="bg-gray-100 px-1 rounded">SessionID</code> = 1 session)</li>
+                        <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources. If medium doesn&apos;t contain &quot;rec&quot;, it&apos;s not counted as a unique lead visitor.</li>
+                        <li><strong>Avg. Session Duration:</strong> Average time (in seconds) visitors spend on the page per session. Calculated as total duration ÷ number of sessions. Higher duration indicates better content engagement and lead quality.</li>
+                        <li><strong>Deck Submission:</strong> Total number of pitch decks submitted for analysis. Also shows unique leads who submitted (one lead can submit multiple decks). This is the conversion metric from landing to submission.</li>
+                        <li><strong>Analysis Result Email Interactions:</strong> Opens and clicks on lead magnet deck analysis report emails, filtered by <code className="bg-gray-100 px-1 rounded">mailgun_tags</code> containing &quot;analysis result&quot; or &quot;analysis&quot;. Shows total opens, clicks, and unique leads who opened/clicked.</li>
+                        <li>Charts display the latest 12 weeks of data for better trend visualization</li>
                         <li>Track conversion rate from landed to submission to optimize the funnel</li>
                       </ul>
                     </InfoBox>
@@ -437,11 +450,11 @@ export default function Dashboard() {
                 This section tracks the main Fundraising Flywheel landing page performance:
               </p>
               <ul className="list-disc list-inside space-y-1">
-                <li><strong>Landed:</strong> Number of unique sessions on the main landing page</li>
-                <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources.</li>
-                <li><strong>Avg. Session Duration:</strong> Average time visitors spend exploring the page</li>
+                <li><strong>Landed:</strong> Total number of unique sessions on the main landing page (each <code className="bg-gray-100 px-1 rounded">SessionID</code> = 1 session)</li>
+                <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources. If medium doesn&apos;t contain &quot;rec&quot;, it&apos;s not counted as a unique lead visitor.</li>
+                <li><strong>Avg. Session Duration:</strong> Average time (in seconds) visitors spend exploring the page per session. Calculated as total duration ÷ number of sessions. Higher duration suggests better fit and higher conversion potential.</li>
                 <li>This is the entry point for your sales funnel - visitors come here to learn about your services</li>
-                <li>Higher engagement (duration) suggests better fit and higher conversion potential</li>
+                <li>Charts display the latest 12 weeks of data for better trend visualization</li>
                 <li>Monitor trends to understand traffic quality and optimize page content</li>
               </ul>
             </InfoBox>
