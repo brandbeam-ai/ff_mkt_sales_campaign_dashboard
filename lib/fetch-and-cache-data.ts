@@ -65,34 +65,38 @@ export async function fetchAndCacheFunnelData() {
           ],
         })
         .all(),
-      base('deck analysis website interaction')
-        .select({
-          fields: [
-            'SessionID',
-            'Session Duration (second)',
-            'Upload file to analyze',
-            'report date',
-            'Week start of report date',
-          ],
-        })
-        .all(),
+              base('deck analysis website interaction')
+                .select({
+                  fields: [
+                    'SessionID',
+                    'Session Duration (second)',
+                    'Upload file to analyze',
+                    'report date',
+                    'Week start of report date',
+                    'Medium',
+                    'Source / medium',
+                  ],
+                })
+                .all(),
       base('deck analysis reports')
         .select({
           fields: ['Email', 'Report date', 'Week start of report date'],
         })
         .all(),
-      base('FF website interaction')
-        .select({
-          fields: [
-            'SessionID',
-            'Session Duration (second)',
-            'Click book a call button',
-            'Book a call video start',
-            'report date',
-            'Week start of report date',
-          ],
-        })
-        .all(),
+              base('FF website interaction')
+                .select({
+                  fields: [
+                    'SessionID',
+                    'Session Duration (second)',
+                    'Click book a call button',
+                    'Book a call video start',
+                    'report date',
+                    'Week start of report date',
+                    'Medium',
+                    'Source / medium',
+                  ],
+                })
+                .all(),
       base('Book a call')
         .select({
           fields: [

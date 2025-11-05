@@ -11,6 +11,7 @@ interface MetricSectionProps {
   currentWeek?: string;
   formatValue?: (val: number) => string;
   showPercentage?: boolean;
+  percentageLabel?: string;
   unit?: string;
   showChart?: boolean;
   chartType?: 'line' | 'bar';
@@ -22,6 +23,7 @@ export default function MetricSection({
   currentWeek,
   formatValue,
   showPercentage = false,
+  percentageLabel,
   unit = '',
   showChart = true,
   chartType = 'line',
@@ -68,10 +70,17 @@ export default function MetricSection({
             return 0;
           })()}
           percentage={showPercentage && typeof latestMetric.percentage === 'number' ? latestMetric.percentage : undefined}
+          percentageLabel={percentageLabel}
           change={typeof latestMetric.change === 'number' ? latestMetric.change : undefined}
           unit={unit}
           formatValue={formatValue}
-        />
+          uniqueEmails={typeof latestMetric.uniqueEmails === 'number' ? latestMetric.uniqueEmails : undefined}
+          avgInteractionsPerLead={typeof latestMetric.avgInteractionsPerLead === 'number' ? latestMetric.avgInteractionsPerLead : undefined}
+                  clicked={typeof latestMetric.clicked === 'number' ? latestMetric.clicked : undefined}
+                  uniqueEmailsOpened={typeof latestMetric.uniqueEmailsOpened === 'number' ? latestMetric.uniqueEmailsOpened : undefined}
+                  uniqueEmailsClicked={typeof latestMetric.uniqueEmailsClicked === 'number' ? latestMetric.uniqueEmailsClicked : undefined}
+                  uniqueLeads={typeof latestMetric.uniqueLeads === 'number' ? latestMetric.uniqueLeads : undefined}
+                />
                 {validMetrics.length > 1 && (
                   <MetricCard
                     title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Previous Week' : `${title} - Previous Week`}
@@ -86,9 +95,16 @@ export default function MetricSection({
                       return 0;
                     })()}
                     percentage={showPercentage && typeof validMetrics[validMetrics.length - 2].percentage === 'number' ? validMetrics[validMetrics.length - 2].percentage : undefined}
+                    percentageLabel={percentageLabel}
                     unit={unit}
                     formatValue={formatValue}
-                  />
+                            uniqueEmails={typeof validMetrics[validMetrics.length - 2].uniqueEmails === 'number' ? validMetrics[validMetrics.length - 2].uniqueEmails : undefined}
+                            avgInteractionsPerLead={typeof validMetrics[validMetrics.length - 2].avgInteractionsPerLead === 'number' ? validMetrics[validMetrics.length - 2].avgInteractionsPerLead : undefined}
+                            clicked={typeof validMetrics[validMetrics.length - 2].clicked === 'number' ? validMetrics[validMetrics.length - 2].clicked : undefined}
+                            uniqueEmailsOpened={typeof validMetrics[validMetrics.length - 2].uniqueEmailsOpened === 'number' ? validMetrics[validMetrics.length - 2].uniqueEmailsOpened : undefined}
+                            uniqueEmailsClicked={typeof validMetrics[validMetrics.length - 2].uniqueEmailsClicked === 'number' ? validMetrics[validMetrics.length - 2].uniqueEmailsClicked : undefined}
+                            uniqueLeads={typeof validMetrics[validMetrics.length - 2].uniqueLeads === 'number' ? validMetrics[validMetrics.length - 2].uniqueLeads : undefined}
+                          />
                 )}
       </div>
       {showChart && validMetrics.length > 0 && (

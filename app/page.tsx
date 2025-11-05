@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import {
-  calculateMKTOutreachMetrics,
-  calculateNurtureEmailMetrics,
-  calculateOutreachEmailInteractionMetrics,
-  calculateNurtureEmailInteractionMetrics,
-  calculateAnalysisResultEmailInteractionMetrics,
-  calculateDMMetrics,
-  calculateOrganicLeads,
-  calculateLeadMagnetMetrics,
-  calculateSalesFunnelMetrics,
-} from '@/lib/calculate-metrics';
+          calculateMKTOutreachMetrics,
+          calculateNurtureEmailMetrics,
+          calculateOutreachEmailInteractionMetrics,
+          calculateNurtureEmailInteractionMetrics,
+          calculateAnalysisResultEmailInteractionMetrics,
+          calculateDMMetrics,
+          calculateDMLeadRepliedMetrics,
+          calculateDMFollowupMetrics,
+          calculateLeadMagnetLeads,
+          calculateBookACallLeads,
+          calculateLeadMagnetMetrics,
+          calculateSalesFunnelMetrics,
+        } from '@/lib/calculate-metrics';
 import { calculateDMDetails, DMDetailMetrics } from '@/lib/calculate-dm-details';
 import MetricSection from '@/components/MetricSection';
 import DMDetailsSection from '@/components/DMDetailsSection';
@@ -66,7 +69,7 @@ export default function Dashboard() {
   }
 
   if (error) {
-    return (
+  return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-3xl font-bold mb-8 text-red-600">Error: {error}</h1>
@@ -114,9 +117,11 @@ export default function Dashboard() {
   const analysisResultEmailInteractionMetrics = calculateAnalysisResultEmailInteractionMetrics(
     data.emailInteractions || []
   );
-  const dmMetrics = calculateDMMetrics(linkedinDMLogData);
-  
-  // Calculate DM details with extra safety
+          const dmMetrics = calculateDMMetrics(linkedinDMLogData);
+          const dmLeadRepliedMetrics = calculateDMLeadRepliedMetrics(linkedinDMLogData);
+          const dmFollowupMetrics = calculateDMFollowupMetrics(linkedinDMLogData);
+          
+          // Calculate DM details with extra safety
   let dmDetails: DMDetailMetrics[] = [];
   try {
     if (Array.isArray(linkedinDMLogData) && linkedinDMLogData.length > 0) {
@@ -151,7 +156,8 @@ export default function Dashboard() {
     }
     return true;
   });
-  const organicLeadsMetrics = calculateOrganicLeads(data.leadList || []);
+          const leadMagnetLeadsMetrics = calculateLeadMagnetLeads(data.leadList || []);
+          const bookACallLeadsMetrics = calculateBookACallLeads(data.leadList || []);
   const leadMagnetMetrics = calculateLeadMagnetMetrics(
     data.deckAnalysisInteractions || [],
     data.deckReports || []
@@ -176,129 +182,138 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Marketing Funnel */}
-        <div className="mb-12">
-          <h2 className="text-3xl font-bold mb-6 text-blue-700">Marketing Funnel (WoW)</h2>
+                {/* Marketing Funnel */}
+                <div className="mb-12">
+                  <h2 className="text-3xl font-bold mb-6 text-blue-700">Marketing Funnel (WoW)</h2>
 
-          {/* Email Outreach */}
-          <div className="mb-8">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">Email Outreach</h3>
-            <InfoBox title="About Email Outreach">
-              <p className="mb-2">
-                This section tracks email outreach campaigns sent to leads, separated by campaign type:
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>MKT Outreach:</strong> Outbound marketing emails sent to new leads</li>
-                <li><strong>Nurture Emails:</strong> Follow-up emails to nurture existing leads (General Nurture, Win-back Sequence)</li>
-                <li><strong>% Sent Success:</strong> Percentage of emails successfully sent out of total attempts</li>
-                <li>Data is tracked week-over-week to monitor campaign performance and delivery rates</li>
-              </ul>
-            </InfoBox>
-            
-            <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">MKT Outreach Emails</h4>
-              <MetricSection
-                title="MKT Outreach - Sent"
-                metrics={mktOutreachMetrics}
-                showPercentage={true}
-                unit="emails"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
+                  {/* Outreach */}
+                  <div className="mb-8">
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">Outreach</h3>
+                    <InfoBox title="About Outreach">
+                      <p className="mb-2">
+                        This section tracks MKT Outreach email campaigns and their engagement:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>MKT Outreach - Sent:</strong> Outbound marketing emails sent to new leads</li>
+                        <li><strong>Outreach Emails - Opens & Clicks:</strong> Engagement metrics for MKT Outreach emails</li>
+                        <li>Data is tracked week-over-week to monitor campaign performance and engagement rates</li>
+                      </ul>
+                    </InfoBox>
+                    
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">MKT Outreach - Sent</h4>
+                      <MetricSection
+                        title="MKT Outreach - Sent"
+                        metrics={mktOutreachMetrics}
+                        showPercentage={false}
+                        unit="emails"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
 
-            <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">Nurture Emails</h4>
-              <MetricSection
-                title="Nurture Emails - Sent"
-                metrics={nurtureEmailMetrics}
-                showPercentage={true}
-                unit="emails"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
-          </div>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Outreach Emails - Opens & Clicks</h4>
+                      <MetricSection
+                        title="Outreach Emails - Opens & Clicks"
+                        metrics={outreachEmailInteractionMetrics}
+                        showPercentage={false}
+                        unit="opens"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                  </div>
 
-          {/* Email Interaction */}
-          <div className="mb-8">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">Email Interaction</h3>
-            <InfoBox title="About Email Interaction">
-              <p className="mb-2">
-                This section measures how leads engage with your emails, separated by email type:
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>Outreach Email Interactions:</strong> Opens and clicks on MKT Outreach emails</li>
-                <li><strong>Nurture Email Interactions:</strong> Opens and clicks on Nurture sequence emails</li>
-                <li><strong>Analysis Result Email Interactions:</strong> Opens and clicks on lead magnet deck analysis report emails</li>
-                <li><strong>% Clicked over Opened:</strong> Conversion rate from opens to clicks (engagement quality metric)</li>
-              </ul>
-            </InfoBox>
-            
-            <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">Outreach Email Interactions</h4>
-              <MetricSection
-                title="Outreach Emails - Opens & Clicks"
-                metrics={outreachEmailInteractionMetrics}
-                showPercentage={true}
-                unit="opens"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
+                  {/* Nurture */}
+                  <div className="mb-8">
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">Nurture</h3>
+                    <InfoBox title="About Nurture">
+                      <p className="mb-2">
+                        This section tracks Nurture email campaigns and their engagement:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>Nurture Emails - Sent:</strong> Follow-up emails to nurture existing leads (General Nurture, Win-back Sequence)</li>
+                        <li><strong>Nurture Emails - Opens & Clicks:</strong> Engagement metrics for Nurture sequence emails</li>
+                        <li>Data is tracked week-over-week to monitor nurture campaign performance</li>
+                      </ul>
+                    </InfoBox>
+                    
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Nurture Emails - Sent</h4>
+                      <MetricSection
+                        title="Nurture Emails - Sent"
+                        metrics={nurtureEmailMetrics}
+                        showPercentage={false}
+                        unit="emails"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
 
-            <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">Nurture Email Interactions</h4>
-              <MetricSection
-                title="Nurture Emails - Opens & Clicks"
-                metrics={nurtureEmailInteractionMetrics}
-                showPercentage={true}
-                unit="opens"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Nurture Emails - Opens & Clicks</h4>
+                      <MetricSection
+                        title="Nurture Emails - Opens & Clicks"
+                        metrics={nurtureEmailInteractionMetrics}
+                        showPercentage={false}
+                        unit="opens"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                  </div>
 
-            <div className="mb-6">
-              <h4 className="text-lg font-semibold mb-3 text-gray-700">Analysis Result Email Interactions</h4>
-              <MetricSection
-                title="Analysis Result Emails - Opens & Clicks"
-                metrics={analysisResultEmailInteractionMetrics}
-                showPercentage={true}
-                unit="opens"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
-          </div>
-
-          {/* DM Outreach */}
-          <div className="mb-8">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">DM Outreach</h3>
-            <InfoBox title="About DM Outreach">
-              <p className="mb-2">
-                This section tracks LinkedIn Direct Message outreach and engagement:
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>New DMs Conversation Start:</strong> Number of unique new conversations started each week where you sent the first DM</li>
-                <li><strong>How it works:</strong> The dashboard uses <code className="bg-gray-100 px-1 rounded">Conversation_id</code> to identify unique conversations and counts each conversation in the week it first appeared</li>
-                <li><strong>Lead Replied:</strong> Number of new conversations where the lead responded (multiple senders in the conversation)</li>
-                <li><strong>No Reply:</strong> New conversations where only you sent messages (lead didn&apos;t respond)</li>
-                <li><strong>% Lead Replied over DMed:</strong> Response rate for new conversations (engagement quality metric)</li>
-                <li><strong>Note:</strong> A conversation is only counted once, in the week it first appears. Subsequent messages in the same conversation are not counted as new conversations</li>
-                <li>The detailed breakdown below shows message counts by sender (You vs. Correspondent) and identifies the most active conversations</li>
-              </ul>
-            </InfoBox>
-            <MetricSection
-              title="New DMs Conversation Start"
-              metrics={dmMetrics}
-              showPercentage={true}
-              unit="conversations"
-              showChart={true}
-              chartType="line"
-            />
-            {Array.isArray(dmDetails) && <DMDetailsSection details={dmDetails} />}
-          </div>
+                  {/* DM Outreach */}
+                  <div className="mb-8">
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">DM Outreach</h3>
+                    <InfoBox title="About DM Outreach">
+                      <p className="mb-2">
+                        This section tracks LinkedIn Direct Message outreach and engagement:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>New DMs Conversation Start:</strong> Number of unique new conversations started each week where you sent the first DM</li>
+                        <li><strong>How it works:</strong> The dashboard uses <code className="bg-gray-100 px-1 rounded">Conversation_id</code> to identify unique conversations and counts each conversation in the week it first appeared</li>
+                        <li><strong>Lead Replied:</strong> Number of new conversations where the lead responded (multiple senders in the conversation)</li>
+                        <li><strong>No Reply:</strong> New conversations where only you sent messages (lead didn&apos;t respond)</li>
+                        <li><strong>% Lead Replied over DMed:</strong> Response rate for new conversations (engagement quality metric)</li>
+                        <li><strong>Lead Replied Conversations:</strong> Total number of unique conversations where leads responded (tracked in the week they first appeared)</li>
+                        <li><strong>Followup Conversations:</strong> Number of conversations where you sent a followup DM after the lead replied (measures ongoing engagement)</li>
+                        <li><strong>Note:</strong> A conversation is only counted once, in the week it first appears. Subsequent messages in the same conversation are not counted as new conversations</li>
+                        <li>The detailed breakdown below shows message counts by sender (You vs. Correspondent) and identifies the most active conversations</li>
+                      </ul>
+                    </InfoBox>
+                    <MetricSection
+                      title="New DMs Conversation Start"
+                      metrics={dmMetrics}
+                      showPercentage={true}
+                      percentageLabel="Lead Replied"
+                      unit="conversations"
+                      showChart={true}
+                      chartType="line"
+                    />
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Lead Replied Conversations</h4>
+                      <MetricSection
+                        title="Lead Replied Conversations"
+                        metrics={dmLeadRepliedMetrics}
+                        unit="conversations"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Followup Conversations</h4>
+                      <MetricSection
+                        title="Followup Conversations"
+                        metrics={dmFollowupMetrics}
+                        unit="conversations"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                    {Array.isArray(dmDetails) && <DMDetailsSection details={dmDetails} />}
+                  </div>
 
           {/* New Organic Leads */}
           <div className="mb-8">
@@ -314,55 +329,101 @@ export default function Dashboard() {
                 <li>Tracked week-over-week to monitor organic growth and brand awareness</li>
               </ul>
             </InfoBox>
-            <MetricSection
-              title="Organic Leads (Lead Magnet or Book a Call)"
-              metrics={organicLeadsMetrics}
-              unit="leads"
-              showChart={true}
-              chartType="bar"
-            />
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold mb-3 text-gray-700">Lead Magnet Leads</h4>
+              <MetricSection
+                title="Lead Magnet Leads"
+                metrics={leadMagnetLeadsMetrics}
+                unit="leads"
+                showChart={true}
+                chartType="bar"
+              />
+            </div>
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold mb-3 text-gray-700">Book a Call Leads</h4>
+              <MetricSection
+                title="Book a Call Leads"
+                metrics={bookACallLeadsMetrics}
+                unit="leads"
+                showChart={true}
+                chartType="bar"
+              />
+            </div>
           </div>
 
-          {/* Lead Magnets */}
-          <div className="mb-8">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">2 LMs Performance</h3>
-            <InfoBox title="About Lead Magnets Performance">
-              <p className="mb-2">
-                This section tracks the performance of your lead magnet landing pages (deck analysis tools):
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>Landed:</strong> Number of unique sessions on the lead magnet landing page</li>
-                <li><strong>Avg. Session Duration:</strong> Average time visitors spend on the page (engagement indicator)</li>
-                <li><strong>Deck Submission:</strong> Number of pitch decks submitted for analysis (conversion metric)</li>
-                <li>Higher session duration indicates better content engagement and lead quality</li>
-                <li>Track conversion rate from landed to submission to optimize the funnel</li>
-              </ul>
-            </InfoBox>
-            <MetricSection
-              title="Landed"
-              metrics={leadMagnetMetrics.landed}
-              formatValue={(val) => `${Math.round(val)}`}
-              unit="sessions"
-              showChart={true}
-              chartType="line"
-            />
-            <MetricSection
-              title="Avg. Session Duration"
-              metrics={leadMagnetMetrics.avgDuration}
-              formatValue={(val) => `${Math.round(val)}s`}
-              unit=""
-              showChart={true}
-              chartType="line"
-            />
-            <MetricSection
-              title="Deck Submission"
-              metrics={leadMagnetMetrics.submissions}
-              unit="submissions"
-              showChart={true}
-              chartType="bar"
-            />
-          </div>
-        </div>
+                  {/* Lead Magnets */}
+                  <div className="mb-8">
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">2 LMs Performance</h3>
+                    <InfoBox title="About Lead Magnets Performance">
+                      <p className="mb-2">
+                        This section tracks the performance of your lead magnet landing pages (deck analysis tools):
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>Landed:</strong> Number of unique sessions on the lead magnet landing page</li>
+                        <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources.</li>
+                        <li><strong>Avg. Session Duration:</strong> Average time visitors spend on the page (engagement indicator)</li>
+                        <li><strong>Deck Submission:</strong> Number of pitch decks submitted for analysis (conversion metric)</li>
+                        <li><strong>Analysis Result Email Interactions:</strong> Opens and clicks on lead magnet deck analysis report emails</li>
+                        <li>Higher session duration indicates better content engagement and lead quality</li>
+                        <li>Track conversion rate from landed to submission to optimize the funnel</li>
+                      </ul>
+                    </InfoBox>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Landed</h4>
+                      <MetricSection
+                        title="Landed"
+                        metrics={leadMagnetMetrics.landed}
+                        formatValue={(val) => `${Math.round(val)}`}
+                        unit="sessions"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Unique Lead Visitors</h4>
+                      <MetricSection
+                        title="Unique Lead Visitors"
+                        metrics={leadMagnetMetrics.uniqueVisits}
+                        formatValue={(val) => `${Math.round(val)}`}
+                        unit="visitors"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Avg. Session Duration</h4>
+                      <MetricSection
+                        title="Avg. Session Duration"
+                        metrics={leadMagnetMetrics.avgDuration}
+                        formatValue={(val) => `${Math.round(val)}s`}
+                        unit=""
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Deck Submission</h4>
+                      <MetricSection
+                        title="Deck Submission"
+                        metrics={leadMagnetMetrics.submissions}
+                        unit="submissions"
+                        showChart={true}
+                        chartType="bar"
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold mb-3 text-gray-700">Analysis Result Email Interactions</h4>
+                      <MetricSection
+                        title="Analysis Result Emails - Opens & Clicks"
+                        metrics={analysisResultEmailInteractionMetrics}
+                        showPercentage={false}
+                        unit="opens"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                  </div>
+                </div>
 
         {/* Sales Funnel */}
         <div className="mb-12">
@@ -377,6 +438,7 @@ export default function Dashboard() {
               </p>
               <ul className="list-disc list-inside space-y-1">
                 <li><strong>Landed:</strong> Number of unique sessions on the main landing page</li>
+                <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources.</li>
                 <li><strong>Avg. Session Duration:</strong> Average time visitors spend exploring the page</li>
                 <li>This is the entry point for your sales funnel - visitors come here to learn about your services</li>
                 <li>Higher engagement (duration) suggests better fit and higher conversion potential</li>
@@ -391,6 +453,17 @@ export default function Dashboard() {
               showChart={true}
               chartType="line"
             />
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold mb-3 text-gray-700">Unique Lead Visitors</h4>
+              <MetricSection
+                title="Unique Lead Visitors"
+                metrics={salesFunnelMetrics.uniqueVisits}
+                formatValue={(val) => `${Math.round(val)}`}
+                unit="visitors"
+                showChart={true}
+                chartType="line"
+              />
+            </div>
             <MetricSection
               title="Avg. Session Duration"
               metrics={salesFunnelMetrics.avgDuration}
@@ -409,10 +482,14 @@ export default function Dashboard() {
                 This section tracks the final conversion step in your sales funnel:
               </p>
               <ul className="list-disc list-inside space-y-1">
-                <li><strong>Total Clicks:</strong> Number of times the &quot;Book a Call&quot; button was clicked</li>
+                <li><strong>Total Clicks:</strong> Number of times the &quot;Book a Call&quot; button was clicked on the FF landing page</li>
                 <li><strong>% Landed over Clicked:</strong> Conversion rate from button click to actual call booking completion</li>
-                <li>This metric shows how many interested visitors actually complete the booking process</li>
-                <li>A lower percentage may indicate friction in the booking flow that needs optimization</li>
+                <li><strong>How it works:</strong> The metric calculates (Bookings Completed ÷ Button Clicks) × 100</li>
+                <li><strong>What it means:</strong> Of all visitors who clicked the &quot;Book a Call&quot; button, what percentage actually completed the booking process?</li>
+                <li><strong>Example:</strong> If 100 people clicked the button and 4 completed bookings, the conversion rate is 4%</li>
+                <li>A lower percentage may indicate friction in the booking flow (e.g., complex form, long process, technical issues) that needs optimization</li>
+                <li>A higher percentage indicates a smooth booking experience and effective call-to-action</li>
+                <li>Track week-over-week trends to identify if changes to the booking flow improve or worsen conversion rates</li>
                 <li>Note: This metric will continue to be tracked until the &quot;Book a Call&quot; feature is officially removed</li>
               </ul>
             </InfoBox>
@@ -426,7 +503,7 @@ export default function Dashboard() {
             <MetricSection
               title="% Landed over Clicked"
               metrics={salesFunnelMetrics.clickToLanded}
-              showPercentage={true}
+              showPercentage={false}
               unit="%"
               showChart={true}
               chartType="line"

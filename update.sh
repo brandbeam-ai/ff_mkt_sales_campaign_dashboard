@@ -19,6 +19,9 @@ npm install
 echo "🏗️  Building Next.js application..."
 npm run build
 
+echo "🔄 Fetching and caching data..."
+npm run update-cache
+
 echo "♻️  Restarting PM2 process..."
 pm2 restart $APP_NAME
 

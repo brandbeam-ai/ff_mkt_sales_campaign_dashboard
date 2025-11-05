@@ -122,6 +122,8 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Upload file to analyze',
             'report date',
             'Week start of report date',
+            'Medium',
+            'Source / medium',
           ],
         })
         .all(),
@@ -139,6 +141,8 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Book a call video start',
             'report date',
             'Week start of report date',
+            'Medium',
+            'Source / medium',
           ],
         })
         .all(),

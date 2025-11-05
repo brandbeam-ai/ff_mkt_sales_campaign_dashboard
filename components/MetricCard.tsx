@@ -7,9 +7,16 @@ interface MetricCardProps {
   week: string;
   value: number | string;
   percentage?: number;
+  percentageLabel?: string;
   change?: number;
   unit?: string;
   formatValue?: (val: number) => string;
+  uniqueEmails?: number;
+  avgInteractionsPerLead?: number;
+  clicked?: number;
+  uniqueEmailsOpened?: number;
+  uniqueEmailsClicked?: number;
+  uniqueLeads?: number;
 }
 
 export default function MetricCard({
@@ -17,9 +24,16 @@ export default function MetricCard({
   week,
   value,
   percentage,
+  percentageLabel,
   change,
   unit = '',
   formatValue,
+  uniqueEmails,
+  avgInteractionsPerLead,
+  clicked,
+  uniqueEmailsOpened,
+  uniqueEmailsClicked,
+  uniqueLeads,
 }: MetricCardProps) {
   // Ensure week is a string
   const weekStr = typeof week === 'string' ? week : String(week || '');
@@ -59,9 +73,34 @@ export default function MetricCard({
             {formattedValue}
             {unit && <span className="text-lg ml-1 text-gray-700">{unit}</span>}
           </p>
-          {percentage !== undefined && (
+          {percentage !== undefined && percentageLabel !== undefined && (
             <p className="text-sm text-gray-600 mt-1 font-medium">
-              {percentage.toFixed(1)}% Lead Replied
+              {percentage.toFixed(1)}% {percentageLabel}
+            </p>
+          )}
+          {uniqueEmails !== undefined && uniqueEmailsOpened === undefined && uniqueEmailsClicked === undefined && (
+            <p className="text-xs text-gray-500 mt-1">
+              Unique leads: {uniqueEmails}
+            </p>
+          )}
+          {clicked !== undefined && (
+            <p className="text-xs text-gray-500 mt-1">
+              Clicks: {clicked}
+            </p>
+          )}
+          {uniqueEmailsOpened !== undefined && (
+            <p className="text-xs text-gray-500 mt-1">
+              Unique leads opened: {uniqueEmailsOpened}
+            </p>
+          )}
+          {uniqueEmailsClicked !== undefined && (
+            <p className="text-xs text-gray-500 mt-1">
+              Unique leads clicked: {uniqueEmailsClicked}
+            </p>
+          )}
+          {uniqueLeads !== undefined && (
+            <p className="text-xs text-gray-500 mt-1">
+              Unique leads: {uniqueLeads}
             </p>
           )}
         </div>

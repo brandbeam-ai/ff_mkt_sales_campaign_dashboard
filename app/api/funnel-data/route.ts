@@ -86,6 +86,8 @@ export async function GET() {
             'Upload file to analyze',
             'report date',
             'Week start of report date',
+            'Medium',
+            'Source / medium',
           ],
         })
         .all(),
@@ -103,6 +105,8 @@ export async function GET() {
             'Book a call video start',
             'report date',
             'Week start of report date',
+            'Medium',
+            'Source / medium',
           ],
         })
         .all(),
