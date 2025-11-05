@@ -2,8 +2,30 @@
 
 import MetricCard from './MetricCard';
 import MetricChart from './MetricChart';
-import { formatWeekRange, sortWeeksChronologically } from '@/lib/utils';
+import { formatWeekRange, sortWeeksChronologically, parseWeekStart } from '@/lib/utils';
 import { Metric } from '@/lib/calculate-metrics';
+
+// Helper function to get current week start (Sunday) in DD/MM/YYYY format
+// This matches the "Week start of report date" field format from Airtable
+// Week starts on Sunday (day 0)
+function getCurrentWeekStart(): string {
+  const today = new Date();
+  // Calculate week start (Sunday = day 0)
+  // If today is Sunday, weekStart = today
+  // If today is Monday (day 1), weekStart = today - 1 day
+  // If today is Tuesday (day 2), weekStart = today - 2 days, etc.
+  const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const diff = today.getDate() - day;
+  const weekStartDate = new Date(today);
+  weekStartDate.setDate(diff);
+  
+  // Format as DD/MM/YYYY to match "Week start of report date" field format
+  const dayStr = String(weekStartDate.getDate()).padStart(2, '0');
+  const monthStr = String(weekStartDate.getMonth() + 1).padStart(2, '0');
+  const yearStr = weekStartDate.getFullYear();
+  
+  return `${dayStr}/${monthStr}/${yearStr}`;
+}
 
 interface MetricSectionProps {
   title: string;
@@ -43,10 +65,40 @@ export default function MetricSection({
     );
   }
 
-  // Get the latest week or use currentWeek
-  // The last item in the sorted array is the most recent week
-  const latestWeek = currentWeek || (sortedMetrics.length > 0 ? sortedMetrics[sortedMetrics.length - 1].week : '');
-  const latestMetric = sortedMetrics.find((m) => m.week === latestWeek) || sortedMetrics[sortedMetrics.length - 1];
+  // Determine the actual current week based on today's date
+  // Uses the same logic as "Week start of report date" field: Sunday start, DD/MM/YYYY format
+  // This ensures "Current Week" is based on the actual current date, not the latest week in data
+  const actualCurrentWeek = currentWeek || getCurrentWeekStart();
+  const actualCurrentWeekDate = parseWeekStart(actualCurrentWeek);
+  
+  // Find the most recent week from "Week start of report date" that is <= actual current week
+  // This ensures we don't show future weeks as "Current Week"
+  // metric.week contains the "Week start of report date" value (DD/MM/YYYY format, Sunday start)
+  let latestMetric: Metric | undefined;
+  let latestWeek = '';
+  
+  for (let i = sortedMetrics.length - 1; i >= 0; i--) {
+    const metric = sortedMetrics[i];
+    try {
+      // Parse the "Week start of report date" field (DD/MM/YYYY format)
+      const metricWeekDate = parseWeekStart(metric.week);
+      // Only consider weeks that are <= actual current week (not future weeks)
+      if (metricWeekDate <= actualCurrentWeekDate) {
+        latestMetric = metric;
+        latestWeek = metric.week; // This is the "Week start of report date" value
+        break;
+      }
+    } catch {
+      // If parsing fails, skip this metric
+      continue;
+    }
+  }
+  
+  // Fallback: if no week <= current week found, use the earliest week in data
+  if (!latestMetric) {
+    latestMetric = sortedMetrics[0];
+    latestWeek = sortedMetrics[0].week;
+  }
 
   if (!latestMetric || !latestMetric.week || (typeof latestMetric.value !== 'number' && typeof latestMetric.value !== 'string')) {
     return (
@@ -85,9 +137,52 @@ export default function MetricSection({
                   uniqueEmailsClicked={typeof latestMetric.uniqueEmailsClicked === 'number' ? latestMetric.uniqueEmailsClicked : undefined}
                   uniqueLeads={typeof latestMetric.uniqueLeads === 'number' ? latestMetric.uniqueLeads : undefined}
                 />
-                {sortedMetrics.length > 1 && (() => {
-                  // Get the previous week metric (second-to-last in chronologically sorted array)
-                  const previousMetric = sortedMetrics[sortedMetrics.length - 2];
+                {(() => {
+                  // Find the previous week: the week immediately before the current week in the sorted data
+                  // We need to find the metric that comes chronologically before latestMetric in the sorted array
+                  let previousMetric: Metric | undefined;
+                  
+                  if (latestMetric && latestWeek) {
+                    try {
+                      // Find the index of the current week metric in the sorted array
+                      const currentWeekIndex = sortedMetrics.findIndex((m) => m.week === latestWeek);
+                      
+                      // If we found the current week and there's a metric before it, use that
+                      if (currentWeekIndex > 0) {
+                        previousMetric = sortedMetrics[currentWeekIndex - 1];
+                      } else if (currentWeekIndex === -1) {
+                        // If current week not found in array (shouldn't happen), find the most recent week < current week
+                        const currentWeekDate = parseWeekStart(latestWeek);
+                        for (let i = sortedMetrics.length - 1; i >= 0; i--) {
+                          const metric = sortedMetrics[i];
+                          try {
+                            const metricWeekDate = parseWeekStart(metric.week);
+                            if (metricWeekDate < currentWeekDate) {
+                              previousMetric = metric;
+                              break;
+                            }
+                          } catch {
+                            continue;
+                          }
+                        }
+                      }
+                    } catch {
+                      // If parsing fails, fallback to second-to-last in array
+                      if (sortedMetrics.length > 1) {
+                        previousMetric = sortedMetrics[sortedMetrics.length - 2];
+                      }
+                    }
+                  }
+                  
+                  if (!previousMetric && sortedMetrics.length > 1) {
+                    // Final fallback: use second-to-last in sorted array
+                    previousMetric = sortedMetrics[sortedMetrics.length - 2];
+                  }
+                  
+                  if (!previousMetric) {
+                    return null;
+                  }
+                  
                   return (
                     <MetricCard
                       title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Previous Week' : `${title} - Previous Week`}

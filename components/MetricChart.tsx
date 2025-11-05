@@ -13,7 +13,23 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Metric } from '@/lib/calculate-metrics';
-import { formatWeekRange, sortWeeksChronologically } from '@/lib/utils';
+import { formatWeekRange, sortWeeksChronologically, parseWeekStart } from '@/lib/utils';
+
+// Helper function to get current week start (Sunday) in DD/MM/YYYY format
+// This matches the "Week start of report date" field format from Airtable
+function getCurrentWeekStart(): string {
+  const today = new Date();
+  const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const diff = today.getDate() - day;
+  const weekStartDate = new Date(today);
+  weekStartDate.setDate(diff);
+  
+  const dayStr = String(weekStartDate.getDate()).padStart(2, '0');
+  const monthStr = String(weekStartDate.getMonth() + 1).padStart(2, '0');
+  const yearStr = weekStartDate.getFullYear();
+  
+  return `${dayStr}/${monthStr}/${yearStr}`;
+}
 
 interface MetricChartProps {
   title: string;
@@ -44,8 +60,22 @@ export default function MetricChart({
   // Prepare chart data - ensure chronological order
   const sortedMetrics = [...metrics].sort((a, b) => sortWeeksChronologically(a.week, b.week));
   
-  // Limit to latest 12 weeks for better visualization
-  const latest12Weeks = sortedMetrics.slice(-12);
+  // Filter out future weeks - only show weeks <= current week
+  const actualCurrentWeek = getCurrentWeekStart();
+  const actualCurrentWeekDate = parseWeekStart(actualCurrentWeek);
+  
+  const filteredMetrics = sortedMetrics.filter((metric) => {
+    try {
+      const metricWeekDate = parseWeekStart(metric.week);
+      return metricWeekDate <= actualCurrentWeekDate;
+    } catch {
+      // If parsing fails, exclude it to be safe
+      return false;
+    }
+  });
+  
+  // Limit to latest 12 weeks from the filtered (non-future) data
+  const latest12Weeks = filteredMetrics.slice(-12);
   
   const chartData = latest12Weeks.map((metric) => ({
     week: formatWeekRange(metric.week),
