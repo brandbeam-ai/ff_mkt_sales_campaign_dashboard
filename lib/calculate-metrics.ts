@@ -21,6 +21,7 @@ export interface Metric {
   links?: string[];
   leadEmails?: string[];
   clickLeadEmails?: string[];
+  clickLinksByEmail?: Record<string, string[]>;
   deckBreakdown?: {
     primaryCount?: number;
     redemptiveCount?: number;
@@ -261,6 +262,11 @@ function calculateEmailInteractionMetricsByTag(
       const uniqueOpened = uniqueEmailsOpenedMap.get(week)?.size || 0;
       const uniqueClicked = uniqueEmailsClickedMap.get(week)?.size || 0;
       const linksSet = data.clickLinks;
+      const emailLinkMap = clickLinkMap.get(week) || new Map<string, Set<string>>();
+      const clickLinksByEmail: Record<string, string[]> = {};
+      emailLinkMap.forEach((set, email) => {
+        clickLinksByEmail[email] = Array.from(set);
+      });
 
       return {
         week,
@@ -270,6 +276,7 @@ function calculateEmailInteractionMetricsByTag(
         uniqueEmailsOpened: uniqueOpened,
         uniqueEmailsClicked: uniqueClicked,
         links: Array.from(linksSet.values()),
+        clickLinksByEmail,
       };
     })
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));

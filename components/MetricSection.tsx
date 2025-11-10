@@ -157,6 +157,104 @@ export default function MetricSection({
     />
   );
 
+  const renderLinkClicksByEmail = (metric?: Metric) => {
+    if (!metric?.clickLinksByEmail) {
+      return null;
+    }
+
+    const entries = Object.entries(metric.clickLinksByEmail).filter(([, links]) => links.length > 0);
+    if (entries.length === 0) {
+      return null;
+    }
+
+    return (
+      <details className="group">
+        <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+          Links Clicked by Lead
+        </summary>
+        <div className="max-h-56 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+          <ul className="space-y-3 text-xs text-gray-700">
+            {entries.map(([email, links]) => (
+              <li key={email} className="wrap-break-word">
+                <p className="font-semibold text-gray-800 mb-1">{email}</p>
+                <ul className="list-disc list-inside space-y-1 text-indigo-600">
+                  {links.map((link) => (
+                    <li key={`${email}-${link}`} className="break-all">
+                      <a href={link} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </details>
+    );
+  };
+
+  const renderDeckBreakdown = (metric?: Metric) => {
+    if (!metric?.deckBreakdown) return null;
+    const breakdown = metric.deckBreakdown;
+    const hasSessions = breakdown.primaryCount !== undefined || breakdown.redemptiveCount !== undefined;
+    const hasUniqueVisits = breakdown.primaryUniqueVisits !== undefined || breakdown.redemptiveUniqueVisits !== undefined;
+    const hasDurations = breakdown.primaryAverageDuration !== undefined || breakdown.redemptiveAverageDuration !== undefined;
+
+    if (!hasSessions && !hasUniqueVisits && !hasDurations) {
+      return null;
+    }
+
+    return (
+      <div className="text-xs text-gray-600">
+        <p className="font-semibold text-gray-700 mb-1">Lead Magnet Breakdown</p>
+        {hasSessions && (
+          <>
+            <p>Primary Deck Sessions: {breakdown.primaryCount?.toLocaleString() ?? 0}</p>
+            <p>Redemptive Deck Sessions: {breakdown.redemptiveCount?.toLocaleString() ?? 0}</p>
+          </>
+        )}
+        {hasUniqueVisits && (
+          <>
+            <p>Primary Unique Visitors: {breakdown.primaryUniqueVisits?.toLocaleString() ?? 0}</p>
+            <p>Redemptive Unique Visitors: {breakdown.redemptiveUniqueVisits?.toLocaleString() ?? 0}</p>
+          </>
+        )}
+        {hasDurations && (
+          <>
+            <p>
+              Primary Avg Session Duration:{' '}
+              {breakdown.primaryAverageDuration !== undefined
+                ? `${Math.round(breakdown.primaryAverageDuration)}s`
+                : 'N/A'}
+            </p>
+            <p>
+              Redemptive Avg Session Duration:{' '}
+              {breakdown.redemptiveAverageDuration !== undefined
+                ? `${Math.round(breakdown.redemptiveAverageDuration)}s`
+                : 'N/A'}
+            </p>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const buildExtraContent = (metric?: Metric) => {
+    const sections: React.ReactNode[] = [];
+    const linkClicks = renderLinkClicksByEmail(metric);
+    const breakdown = renderDeckBreakdown(metric);
+
+    if (linkClicks) sections.push(linkClicks);
+    if (breakdown) sections.push(breakdown);
+
+    if (sections.length === 0) {
+      return undefined;
+    }
+
+    return <div className="space-y-4">{sections}</div>;
+  };
+
   return (
     <div className="mb-8">
       <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
@@ -165,60 +263,7 @@ export default function MetricSection({
           lastWeekMetric,
           lastWeekKey,
           'Last Week',
-          lastWeekMetric && (lastWeekMetric.links?.length || lastWeekMetric.deckBreakdown || lastWeekMetric.clickLeadEmails?.length)
-            ? (
-                <div className="mt-4 space-y-4">
-                  {lastWeekMetric.links?.length ? (
-                    <details className="group">
-                      <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">Links Clicked (Unique Leads)</summary>
-                      <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
-                        <ul className="list-disc list-inside space-y-1 text-xs text-indigo-600">
-                          {lastWeekMetric.links.map((link) => (
-                            <li key={link} className="break-all">
-                              {link}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </details>
-                  ) : null}
-
-                  {lastWeekMetric.deckBreakdown && (
-                    <div className="text-xs text-gray-600">
-                      <p className="font-semibold text-gray-700 mb-1">Lead Magnet Breakdown</p>
-                      {lastWeekMetric.deckBreakdown.primaryCount !== undefined || lastWeekMetric.deckBreakdown.redemptiveCount !== undefined ? (
-                        <>
-                          <p>Primary Deck Sessions: {lastWeekMetric.deckBreakdown.primaryCount?.toLocaleString() ?? 0}</p>
-                          <p>Redemptive Deck Sessions: {lastWeekMetric.deckBreakdown.redemptiveCount?.toLocaleString() ?? 0}</p>
-                        </>
-                      ) : null}
-                      {lastWeekMetric.deckBreakdown.primaryUniqueVisits !== undefined || lastWeekMetric.deckBreakdown.redemptiveUniqueVisits !== undefined ? (
-                        <>
-                          <p>Primary Unique Visitors: {lastWeekMetric.deckBreakdown.primaryUniqueVisits?.toLocaleString() ?? 0}</p>
-                          <p>Redemptive Unique Visitors: {lastWeekMetric.deckBreakdown.redemptiveUniqueVisits?.toLocaleString() ?? 0}</p>
-                        </>
-                      ) : null}
-                      {lastWeekMetric.deckBreakdown.primaryAverageDuration !== undefined || lastWeekMetric.deckBreakdown.redemptiveAverageDuration !== undefined ? (
-                        <>
-                          <p>
-                            Primary Avg Session Duration:{' '}
-                            {lastWeekMetric.deckBreakdown.primaryAverageDuration !== undefined
-                              ? `${Math.round(lastWeekMetric.deckBreakdown.primaryAverageDuration)}s`
-                              : 'N/A'}
-                          </p>
-                          <p>
-                            Redemptive Avg Session Duration:{' '}
-                            {lastWeekMetric.deckBreakdown.redemptiveAverageDuration !== undefined
-                              ? `${Math.round(lastWeekMetric.deckBreakdown.redemptiveAverageDuration)}s`
-                              : 'N/A'}
-                          </p>
-                        </>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              )
-            : undefined,
+          buildExtraContent(lastWeekMetric),
           lastWeekMetric?.leadEmails,
           lastWeekMetric?.clickLeadEmails
         )}
@@ -227,60 +272,7 @@ export default function MetricSection({
             twoWeeksMetric,
             twoWeeksKey,
             'Two Weeks Ago',
-            twoWeeksMetric && (twoWeeksMetric.links?.length || twoWeeksMetric.deckBreakdown || twoWeeksMetric.clickLeadEmails?.length)
-              ? (
-                  <div className="mt-4 space-y-4">
-                    {twoWeeksMetric.links?.length ? (
-                      <details className="group">
-                        <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">Links Clicked (Unique Leads)</summary>
-                        <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
-                          <ul className="list-disc list-inside space-y-1 text-xs text-indigo-600">
-                            {twoWeeksMetric.links.map((link) => (
-                              <li key={link} className="break-all">
-                                {link}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </details>
-                    ) : null}
-
-                    {twoWeeksMetric.deckBreakdown && (
-                      <div className="text-xs text-gray-600">
-                        <p className="font-semibold text-gray-700 mb-1">Lead Magnet Breakdown</p>
-                        {twoWeeksMetric.deckBreakdown.primaryCount !== undefined || twoWeeksMetric.deckBreakdown.redemptiveCount !== undefined ? (
-                          <>
-                            <p>Primary Deck Sessions: {twoWeeksMetric.deckBreakdown.primaryCount?.toLocaleString() ?? 0}</p>
-                            <p>Redemptive Deck Sessions: {twoWeeksMetric.deckBreakdown.redemptiveCount?.toLocaleString() ?? 0}</p>
-                          </>
-                        ) : null}
-                        {twoWeeksMetric.deckBreakdown.primaryUniqueVisits !== undefined || twoWeeksMetric.deckBreakdown.redemptiveUniqueVisits !== undefined ? (
-                          <>
-                            <p>Primary Unique Visitors: {twoWeeksMetric.deckBreakdown.primaryUniqueVisits?.toLocaleString() ?? 0}</p>
-                            <p>Redemptive Unique Visitors: {twoWeeksMetric.deckBreakdown.redemptiveUniqueVisits?.toLocaleString() ?? 0}</p>
-                          </>
-                        ) : null}
-                        {twoWeeksMetric.deckBreakdown.primaryAverageDuration !== undefined || twoWeeksMetric.deckBreakdown.redemptiveAverageDuration !== undefined ? (
-                          <>
-                            <p>
-                              Primary Avg Session Duration:{' '}
-                              {twoWeeksMetric.deckBreakdown.primaryAverageDuration !== undefined
-                                ? `${Math.round(twoWeeksMetric.deckBreakdown.primaryAverageDuration)}s`
-                                : 'N/A'}
-                            </p>
-                            <p>
-                              Redemptive Avg Session Duration:{' '}
-                              {twoWeeksMetric.deckBreakdown.redemptiveAverageDuration !== undefined
-                                ? `${Math.round(twoWeeksMetric.deckBreakdown.redemptiveAverageDuration)}s`
-                                : 'N/A'}
-                            </p>
-                          </>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-                )
-              : undefined,
+            buildExtraContent(twoWeeksMetric),
             twoWeeksMetric?.leadEmails,
             twoWeeksMetric?.clickLeadEmails
           )}
