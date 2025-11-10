@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Standalone script to update cache directly without requiring the server
  * This uses Node.js to directly call the fetchAndCacheFunnelData function
@@ -77,6 +78,7 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Week start of report date',
             'Source (from Lead list)',
             'mailgun_tags',
+            'Click link',
           ],
         })
         .all(),
@@ -99,6 +101,8 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Sent time',
             'Week start of report date',
             'Link to DM_replied',
+            'Lead LK URL (from DM_replied)',
+            'Lead firstname (from DM_replied)',
           ],
         })
         .all(),
@@ -114,7 +118,7 @@ if (!process.env.AIRTABLE_API_KEY) {
           ],
         })
         .all(),
-      base('deck analysis website interaction')
+      base('tblu1ysfvNegTl5mU')
         .select({
           fields: [
             'SessionID',
@@ -124,6 +128,23 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Week start of report date',
             'Medium',
             'Source / medium',
+            'Source (from Lead list)',
+            'Email (from Lead list)',
+          ],
+        })
+        .all(),
+      base('tblnpro0Nf39WIMK6')
+        .select({
+          fields: [
+            'SessionID',
+            'Session Duration (second)',
+            'Upload file to analyze',
+            'report date',
+            'Week start of report date',
+            'Medium',
+            'Source / medium',
+            'Source (from Lead list)',
+            'Email (from Lead list)',
           ],
         })
         .all(),
@@ -143,6 +164,8 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Week start of report date',
             'Medium',
             'Source / medium',
+            'Source (from Lead list)',
+            'Email (from Lead list)',
           ],
         })
         .all(),
@@ -174,9 +197,19 @@ if (!process.env.AIRTABLE_API_KEY) {
     const linkedinDMLog = getData(results[3]);
     const leadList = getData(results[4]);
     const deckAnalysisInteractions = getData(results[5]);
-    const deckReports = getData(results[6]);
-    const ffInteractions = getData(results[7]);
-    const bookACall = getData(results[8]);
+    const deckAnalysisInteractionsRedemptive = getData(results[6]);
+    const deckReports = getData(results[7]);
+    const ffInteractions = getData(results[8]);
+    const bookACall = getData(results[9]);
+    
+    const primaryDeckInteractions = deckAnalysisInteractions
+      .filter((record) => record && record.fields)
+      .map((record) => ({ ...record.fields, __deckSource: 'primary' }));
+    const redemptiveDeckAnalysisInteractions = deckAnalysisInteractionsRedemptive
+      .filter((record) => record && record.fields)
+      .map((record) => ({ ...record.fields, __deckSource: 'redemptive' }));
+
+    const combinedDeckInteractions = [...primaryDeckInteractions, ...redemptiveDeckAnalysisInteractions];
     
     const data = {
       sentEmailLog: sentEmailLog.map((r) => r.fields),
@@ -184,7 +217,7 @@ if (!process.env.AIRTABLE_API_KEY) {
       dmReplied: dmReplied.map((r) => r.fields),
       linkedinDMLog: linkedinDMLog.map((r) => r.fields),
       leadList: leadList.map((r) => r.fields),
-      deckAnalysisInteractions: deckAnalysisInteractions.map((r) => r.fields),
+      deckAnalysisInteractions: combinedDeckInteractions,
       deckReports: deckReports.map((r) => r.fields),
       ffInteractions: ffInteractions.map((r) => r.fields),
       bookACall: bookACall.map((r) => r.fields),
@@ -195,7 +228,7 @@ if (!process.env.AIRTABLE_API_KEY) {
     const dataDir = join(process.cwd(), 'data');
     try {
       await mkdir(dataDir, { recursive: true });
-    } catch (error) {
+    } catch {
       // Directory might already exist
     }
     
@@ -210,6 +243,9 @@ if (!process.env.AIRTABLE_API_KEY) {
       sentEmailLog: data.sentEmailLog.length,
       emailInteractions: data.emailInteractions.length,
       linkedinDMLog: data.linkedinDMLog.length,
+      deckAnalysisInteractions: combinedDeckInteractions.length,
+      redemptiveDeckAnalysisInteractions: redemptiveDeckAnalysisInteractions.length,
+      ffInteractions: data.ffInteractions.length,
       leadList: data.leadList.length,
     });
     

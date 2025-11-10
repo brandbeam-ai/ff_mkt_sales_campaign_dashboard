@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Script to update the cached funnel data from Airtable
  * Can be run manually or scheduled via cron/Task Scheduler
@@ -85,6 +86,9 @@ if (!process.env.AIRTABLE_API_KEY) {
           sentEmailLog: data.sentEmailLog.length,
           emailInteractions: data.emailInteractions.length,
           linkedinDMLog: data.linkedinDMLog.length,
+          deckAnalysisInteractions: data.deckAnalysisInteractions.length,
+          redemptiveDeckAnalysisInteractions: data.deckAnalysisInteractions.filter((item: any) => item.__deckSource === 'redemptive').length,
+          ffInteractions: data.ffInteractions.length,
           leadList: data.leadList.length,
         });
         process.exit(0);
