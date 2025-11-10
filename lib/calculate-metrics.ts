@@ -18,6 +18,17 @@ export interface Metric {
   uniqueEmailsClicked?: number;
   uniqueVisits?: number; // Unique visits based on medium containing "rec"
   uniqueLeads?: number; // Unique leads (for deck submissions)
+  links?: string[];
+  leadEmails?: string[];
+  clickLeadEmails?: string[];
+  deckBreakdown?: {
+    primaryCount?: number;
+    redemptiveCount?: number;
+    primaryAverageDuration?: number;
+    redemptiveAverageDuration?: number;
+    primaryUniqueVisits?: number;
+    redemptiveUniqueVisits?: number;
+  };
 }
 
 // Helper function to calculate email metrics for a specific sequence filter
@@ -159,7 +170,7 @@ function calculateEmailInteractionMetricsByTag(
   emailInteractions: any[],
   tagFilter: (tag: string) => boolean
 ): Metric[] {
-  const weekMap = new Map<string, { opened: number; clicked: number; unsubscribed: number }>();
+  const weekMap = new Map<string, { opened: number; clicked: number; unsubscribed: number; uniqueEmailsOpened: Set<string>; uniqueEmailsClicked: Set<string>; clickLinks: Set<string>; }>();
 
   emailInteractions.forEach((record) => {
     const weekStart = record['Week start of report date'];
@@ -168,7 +179,7 @@ function calculateEmailInteractionMetricsByTag(
     if (!weekStart || !tagFilter(mailgunTag)) return;
 
     if (!weekMap.has(weekStart)) {
-      weekMap.set(weekStart, { opened: 0, clicked: 0, unsubscribed: 0 });
+      weekMap.set(weekStart, { opened: 0, clicked: 0, unsubscribed: 0, uniqueEmailsOpened: new Set(), uniqueEmailsClicked: new Set(), clickLinks: new Set() });
     }
 
     const weekData = weekMap.get(weekStart)!;
@@ -183,60 +194,82 @@ function calculateEmailInteractionMetricsByTag(
     }
   });
 
-  // Track unique emails per week and interaction counts per email
   const uniqueEmailMap = new Map<string, Set<string>>();
-  const emailInteractionCountMap = new Map<string, Map<string, number>>(); // week -> email -> count
-  const uniqueEmailsOpenedMap = new Map<string, Set<string>>(); // week -> set of emails that opened
-  const uniqueEmailsClickedMap = new Map<string, Set<string>>(); // week -> set of emails that clicked
+  const emailInteractionCountMap = new Map<string, Map<string, number>>();
+  const uniqueEmailsOpenedMap = new Map<string, Set<string>>();
+  const uniqueEmailsClickedMap = new Map<string, Set<string>>();
+  const clickLinkMap = new Map<string, Map<string, Set<string>>>(); // week -> email -> links
 
   emailInteractions.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const email = record['Email'] || '';
     const mailgunTag = record['mailgun_tags'] || '';
     const event = record['Event']?.toLowerCase() || '';
+    const clickLink = record['Click link'] || '';
     
     if (!weekStart || !email || !tagFilter(mailgunTag)) return;
 
     if (!uniqueEmailMap.has(weekStart)) {
       uniqueEmailMap.set(weekStart, new Set<string>());
+    }
+    uniqueEmailMap.get(weekStart)!.add(email.toLowerCase());
+
+    if (!emailInteractionCountMap.has(weekStart)) {
       emailInteractionCountMap.set(weekStart, new Map<string, number>());
+    }
+
+    const emailCounts = emailInteractionCountMap.get(weekStart)!;
+    const emailKey = email.toLowerCase();
+
+    if (!emailCounts.has(emailKey)) {
+      emailCounts.set(emailKey, 0);
+    }
+    emailCounts.set(emailKey, emailCounts.get(emailKey)! + 1);
+
+    if (!uniqueEmailsOpenedMap.has(weekStart)) {
       uniqueEmailsOpenedMap.set(weekStart, new Set<string>());
+    }
+
+    if (!uniqueEmailsClickedMap.has(weekStart)) {
       uniqueEmailsClickedMap.set(weekStart, new Set<string>());
     }
-    
-    const emailLower = email.toLowerCase();
-    uniqueEmailMap.get(weekStart)!.add(emailLower);
-    
-    const interactionMap = emailInteractionCountMap.get(weekStart)!;
-    interactionMap.set(emailLower, (interactionMap.get(emailLower) || 0) + 1);
 
-    // Track unique emails by event type
-    if (event.includes('open') || event.includes('opened')) {
-      uniqueEmailsOpenedMap.get(weekStart)!.add(emailLower);
-    } else if (event.includes('click') || event.includes('clicked')) {
-      uniqueEmailsClickedMap.get(weekStart)!.add(emailLower);
+    if (!clickLinkMap.has(weekStart)) {
+      clickLinkMap.set(weekStart, new Map<string, Set<string>>());
+    }
+
+    if (event.includes('open')) {
+      uniqueEmailsOpenedMap.get(weekStart)!.add(emailKey);
+    }
+
+    if (event.includes('click')) {
+      uniqueEmailsClickedMap.get(weekStart)!.add(emailKey);
+      if (clickLink) {
+        const linkMap = clickLinkMap.get(weekStart)!;
+        if (!linkMap.has(emailKey)) {
+          linkMap.set(emailKey, new Set<string>());
+        }
+        linkMap.get(emailKey)!.add(String(clickLink));
+        weekMap.get(weekStart)?.clickLinks.add(String(clickLink));
+      }
     }
   });
 
   const metrics: Metric[] = Array.from(weekMap.entries())
     .map(([week, data]) => {
       const uniqueEmails = uniqueEmailMap.get(week)?.size || 0;
-      const interactionCountMap = emailInteractionCountMap.get(week) || new Map();
-      const totalInteractions = Array.from(interactionCountMap.values()).reduce((sum, count) => sum + count, 0);
-      const avgInteractionsPerLead = uniqueEmails > 0 ? totalInteractions / uniqueEmails : 0;
-      const uniqueEmailsOpened = uniqueEmailsOpenedMap.get(week)?.size || 0;
-      const uniqueEmailsClicked = uniqueEmailsClickedMap.get(week)?.size || 0;
-      
+      const uniqueOpened = uniqueEmailsOpenedMap.get(week)?.size || 0;
+      const uniqueClicked = uniqueEmailsClickedMap.get(week)?.size || 0;
+      const linksSet = data.clickLinks;
+
       return {
         week,
         value: data.opened,
-        percentage: data.opened > 0 ? (data.clicked / data.opened) * 100 : 0,
         clicked: data.clicked,
-        unsubscribed: data.unsubscribed,
-        uniqueEmails: uniqueEmails,
-        avgInteractionsPerLead: avgInteractionsPerLead,
-        uniqueEmailsOpened: uniqueEmailsOpened,
-        uniqueEmailsClicked: uniqueEmailsClicked,
+        uniqueEmails,
+        uniqueEmailsOpened: uniqueOpened,
+        uniqueEmailsClicked: uniqueClicked,
+        links: Array.from(linksSet.values()),
       };
     })
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
@@ -740,26 +773,54 @@ export function calculateOrganicLeads(leadList: any[]): Metric[] {
 
 export function calculateLeadMagnetMetrics(
   deckAnalysisInteractions: any[],
-  deckReports: any[]
+  deckReports: any[],
+  redemptiveDeckAnalysisInteractions: any[] = []
 ): { landed: Metric[]; submissions: Metric[]; avgDuration: Metric[]; uniqueVisits: Metric[] } {
-  const landedWeekMap = new Map<string, { 
-    count: number; 
-    totalDuration: number; 
+  const landedWeekMap = new Map<string, {
+    count: number;
+    totalDuration: number;
     sessions: number;
-    uniqueMediums: Set<string>; // Track unique mediums where medium contains "rec"
+    uniqueMediums: Set<string>;
+    leadEmails: Map<string, Set<string>>;
+    primaryCount: number;
+    redemptiveCount: number;
+    primaryDuration: number;
+    redemptiveDuration: number;
+    primaryUniqueMediums: Set<string>;
+    redemptiveUniqueMediums: Set<string>;
+    primaryLeadEmails: Map<string, Set<string>>;
+    redemptiveLeadEmails: Map<string, Set<string>>;
   }>();
 
-  // Process deck analysis interactions
-  deckAnalysisInteractions.forEach((record) => {
+  const processDeckInteraction = (record: any) => {
+    if (!record || typeof record !== 'object') {
+      return;
+    }
+
     const weekStart = record['Week start of report date'];
     if (!weekStart) return;
 
+    const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().toLowerCase();
+    const sourceMediumField = (record['Source / medium'] || '').toString().toLowerCase();
+    if (sourceFromLeadList.includes('internal') || sourceMediumField.includes('test')) {
+      return;
+    }
+
     if (!landedWeekMap.has(weekStart)) {
-      landedWeekMap.set(weekStart, { 
-        count: 0, 
-        totalDuration: 0, 
+      landedWeekMap.set(weekStart, {
+        count: 0,
+        totalDuration: 0,
         sessions: 0,
         uniqueMediums: new Set<string>(),
+        leadEmails: new Map<string, Set<string>>(),
+        primaryCount: 0,
+        redemptiveCount: 0,
+        primaryDuration: 0,
+        redemptiveDuration: 0,
+        primaryUniqueMediums: new Set<string>(),
+        redemptiveUniqueMediums: new Set<string>(),
+        primaryLeadEmails: new Map<string, Set<string>>(),
+        redemptiveLeadEmails: new Map<string, Set<string>>(),
       });
     }
 
@@ -767,8 +828,20 @@ export function calculateLeadMagnetMetrics(
     weekData.sessions++;
     weekData.count++;
 
-    const duration = record['Session Duration (second)'] || 0;
+    const deckSource = (record['__deckSource'] || 'primary') as 'primary' | 'redemptive';
+    if (deckSource === 'primary') {
+      weekData.primaryCount++;
+    } else {
+      weekData.redemptiveCount++;
+    }
+
+    const duration = Number(record['Session Duration (second)'] || 0);
     weekData.totalDuration += duration;
+    if (deckSource === 'primary') {
+      weekData.primaryDuration += duration;
+    } else {
+      weekData.redemptiveDuration += duration;
+    }
 
     // Track unique mediums where medium contains "rec"
     // Try multiple possible field names
@@ -780,16 +853,41 @@ export function calculateLeadMagnetMetrics(
     
     // Also check if there's a Source/medium format in the data
     const sourceMedium = record['Source / medium'] || record['Source/medium'] || '';
-    const finalMedium = (medium || sourceMedium).trim(); // Trim whitespace
-    
+    const finalMedium = (medium || sourceMedium).trim();
+    const emailFromLeadList = (record['Email (from Lead list)'] || '').toString().toLowerCase();
+
     const mediumLower = finalMedium.toLowerCase();
-    // Check if medium contains "rec" (case-insensitive, after trimming)
     if (mediumLower && mediumLower.includes('rec')) {
-      // Use the medium value as the unique identifier (trimmed)
-      // Multiple sessionIDs can share the same medium
       weekData.uniqueMediums.add(finalMedium);
+      if (!weekData.leadEmails.has(finalMedium)) {
+        weekData.leadEmails.set(finalMedium, new Set<string>());
+      }
+      if (emailFromLeadList) {
+        weekData.leadEmails.get(finalMedium)!.add(emailFromLeadList);
+      }
+
+      if (deckSource === 'primary') {
+        weekData.primaryUniqueMediums.add(finalMedium);
+        if (!weekData.primaryLeadEmails.has(finalMedium)) {
+          weekData.primaryLeadEmails.set(finalMedium, new Set<string>());
+        }
+        if (emailFromLeadList) {
+          weekData.primaryLeadEmails.get(finalMedium)!.add(emailFromLeadList);
+        }
+      } else {
+        weekData.redemptiveUniqueMediums.add(finalMedium);
+        if (!weekData.redemptiveLeadEmails.has(finalMedium)) {
+          weekData.redemptiveLeadEmails.set(finalMedium, new Set<string>());
+        }
+        if (emailFromLeadList) {
+          weekData.redemptiveLeadEmails.get(finalMedium)!.add(emailFromLeadList);
+        }
+      }
     }
-  });
+  };
+
+  deckAnalysisInteractions.forEach((record) => processDeckInteraction(record));
+  redemptiveDeckAnalysisInteractions.forEach((record) => processDeckInteraction(record));
 
   // Process deck submissions - track both total submissions and unique leads
   const submissionWeekMap = new Map<string, { submissions: number; uniqueLeads: Set<string> }>();
@@ -816,6 +914,10 @@ export function calculateLeadMagnetMetrics(
     .map(([week, data]) => ({
       week,
       value: data.count,
+      deckBreakdown: {
+        primaryCount: data.primaryCount,
+        redemptiveCount: data.redemptiveCount,
+      },
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
@@ -823,6 +925,12 @@ export function calculateLeadMagnetMetrics(
     .map(([week, data]) => ({
       week,
       value: data.sessions > 0 ? data.totalDuration / data.sessions : 0,
+      deckBreakdown: {
+        primaryAverageDuration:
+          data.primaryCount > 0 ? data.primaryDuration / data.primaryCount : undefined,
+        redemptiveAverageDuration:
+          data.redemptiveCount > 0 ? data.redemptiveDuration / data.redemptiveCount : undefined,
+      },
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
@@ -839,6 +947,13 @@ export function calculateLeadMagnetMetrics(
       week,
       value: data.uniqueMediums.size,
       uniqueVisits: data.uniqueMediums.size,
+      leadEmails: Array.from(new Set(Array.from(data.leadEmails.values()).flatMap((set) => Array.from(set))))
+        .map((email) => email)
+        .filter(Boolean),
+      deckBreakdown: {
+        primaryUniqueVisits: data.primaryUniqueMediums.size,
+        redemptiveUniqueVisits: data.redemptiveUniqueMediums.size,
+      },
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
@@ -875,6 +990,8 @@ export function calculateSalesFunnelMetrics(
     sessions: number; 
     clicks: number;
     uniqueMediums: Set<string>; // Track unique mediums where medium contains "rec"
+    leadEmails: Map<string, Set<string>>;
+    clickEmails: Set<string>;
   }>();
 
   // Track bookings completed (from Book a Call table)
@@ -908,6 +1025,12 @@ export function calculateSalesFunnelMetrics(
     const weekStart = record['Week start of report date'];
     if (!weekStart) return;
 
+    const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().toLowerCase();
+    const sourceMediumField = (record['Source / medium'] || '').toString().toLowerCase();
+    if (sourceFromLeadList.includes('internal') || sourceMediumField.includes('test')) {
+      return;
+    }
+
     if (!landedWeekMap.has(weekStart)) {
       landedWeekMap.set(weekStart, { 
         count: 0, 
@@ -915,6 +1038,8 @@ export function calculateSalesFunnelMetrics(
         sessions: 0, 
         clicks: 0,
         uniqueMediums: new Set<string>(),
+        leadEmails: new Map<string, Set<string>>(),
+        clickEmails: new Set<string>(),
       });
     }
 
@@ -947,6 +1072,15 @@ export function calculateSalesFunnelMetrics(
       // Multiple sessionIDs can share the same medium
       weekData.uniqueMediums.add(finalMedium);
     }
+    const emailFromLeadList = (record['Email (from Lead list)'] || '').toString().toLowerCase();
+
+    if (emailFromLeadList) {
+      weekData.clickEmails.add(emailFromLeadList);
+      if (!weekData.leadEmails.has(finalMedium)) {
+        weekData.leadEmails.set(finalMedium, new Set<string>());
+      }
+      weekData.leadEmails.get(finalMedium)!.add(emailFromLeadList);
+    }
   });
 
   const landedMetrics: Metric[] = Array.from(landedWeekMap.entries())
@@ -967,6 +1101,7 @@ export function calculateSalesFunnelMetrics(
     .map(([week, data]) => ({
       week,
       value: data.clicks,
+      clickLeadEmails: Array.from(data.clickEmails),
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
@@ -989,6 +1124,9 @@ export function calculateSalesFunnelMetrics(
       week,
       value: data.uniqueMediums.size,
       uniqueVisits: data.uniqueMediums.size,
+      leadEmails: Array.from(new Set(Array.from(data.leadEmails.values()).flatMap((set) => Array.from(set))))
+        .map((email) => email)
+        .filter(Boolean),
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 

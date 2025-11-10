@@ -17,6 +17,9 @@ interface MetricCardProps {
   uniqueEmailsOpened?: number;
   uniqueEmailsClicked?: number;
   uniqueLeads?: number;
+  extraContent?: React.ReactNode;
+  leadEmailList?: string[];
+  clickLeadEmailList?: string[];
 }
 
 export default function MetricCard({
@@ -34,6 +37,9 @@ export default function MetricCard({
   uniqueEmailsOpened,
   uniqueEmailsClicked,
   uniqueLeads,
+  extraContent,
+  leadEmailList,
+  clickLeadEmailList,
 }: MetricCardProps) {
   // Ensure week is a string
   const weekStr = typeof week === 'string' ? week : String(week || '');
@@ -110,6 +116,39 @@ export default function MetricCard({
           </div>
         )}
       </div>
+      {extraContent && <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">{extraContent}</div>}
+      {leadEmailList && leadEmailList.length > 0 && (
+        <details className="mt-4">
+          <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+            Unique Lead Emails
+          </summary>
+          <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+            <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
+              {leadEmailList.map((email) => (
+                <li key={email} className="break-all">
+                  {email}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+      {clickLeadEmailList && clickLeadEmailList.length > 0 && (
+        <details className="mt-4">
+          <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+            Leads Who Clicked
+          </summary>
+          <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+            <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
+              {clickLeadEmailList.map((email) => (
+                <li key={email} className="break-all">
+                  {email}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
     </div>
   );
 }

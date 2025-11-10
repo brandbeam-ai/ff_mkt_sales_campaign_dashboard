@@ -2,28 +2,31 @@
 
 import MetricCard from './MetricCard';
 import MetricChart from './MetricChart';
-import { formatWeekRange, sortWeeksChronologically, parseWeekStart } from '@/lib/utils';
+import { sortWeeksChronologically, parseWeekStart } from '@/lib/utils';
 import { Metric } from '@/lib/calculate-metrics';
+import React from 'react';
 
 // Helper function to get current week start (Sunday) in DD/MM/YYYY format
 // This matches the "Week start of report date" field format from Airtable
 // Week starts on Sunday (day 0)
 function getCurrentWeekStart(): string {
   const today = new Date();
-  // Calculate week start (Sunday = day 0)
-  // If today is Sunday, weekStart = today
-  // If today is Monday (day 1), weekStart = today - 1 day
-  // If today is Tuesday (day 2), weekStart = today - 2 days, etc.
-  const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const day = today.getDay();
   const diff = today.getDate() - day;
   const weekStartDate = new Date(today);
   weekStartDate.setDate(diff);
-  
-  // Format as DD/MM/YYYY to match "Week start of report date" field format
+
   const dayStr = String(weekStartDate.getDate()).padStart(2, '0');
   const monthStr = String(weekStartDate.getMonth() + 1).padStart(2, '0');
   const yearStr = weekStartDate.getFullYear();
-  
+
+  return `${dayStr}/${monthStr}/${yearStr}`;
+}
+
+function formatDateToWeekString(date: Date): string {
+  const dayStr = String(date.getDate()).padStart(2, '0');
+  const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+  const yearStr = date.getFullYear();
   return `${dayStr}/${monthStr}/${yearStr}`;
 }
 
@@ -55,7 +58,7 @@ export default function MetricSection({
   
   // Sort metrics chronologically by week (DD/MM/YYYY format)
   const sortedMetrics = [...validMetrics].sort((a, b) => sortWeeksChronologically(a.week, b.week));
-  
+
   if (sortedMetrics.length === 0) {
     return (
       <div className="mb-8">
@@ -65,160 +68,234 @@ export default function MetricSection({
     );
   }
 
-  // Determine the actual current week based on today's date
-  // Uses the same logic as "Week start of report date" field: Sunday start, DD/MM/YYYY format
-  // This ensures "Current Week" is based on the actual current date, not the latest week in data
   const actualCurrentWeek = currentWeek || getCurrentWeekStart();
-  const actualCurrentWeekDate = parseWeekStart(actualCurrentWeek);
-  
-  // Find the most recent week from "Week start of report date" that is <= actual current week
-  // This ensures we don't show future weeks as "Current Week"
-  // metric.week contains the "Week start of report date" value (DD/MM/YYYY format, Sunday start)
-  let latestMetric: Metric | undefined;
-  let latestWeek = '';
-  
-  for (let i = sortedMetrics.length - 1; i >= 0; i--) {
-    const metric = sortedMetrics[i];
-    try {
-      // Parse the "Week start of report date" field (DD/MM/YYYY format)
-      const metricWeekDate = parseWeekStart(metric.week);
-      // Only consider weeks that are <= actual current week (not future weeks)
-      if (metricWeekDate <= actualCurrentWeekDate) {
-        latestMetric = metric;
-        latestWeek = metric.week; // This is the "Week start of report date" value
-        break;
-      }
-    } catch {
-      // If parsing fails, skip this metric
-      continue;
-    }
-  }
-  
-  // Fallback: if no week <= current week found, use the earliest week in data
-  if (!latestMetric) {
-    latestMetric = sortedMetrics[0];
-    latestWeek = sortedMetrics[0].week;
+  let actualCurrentWeekDate: Date | null = null;
+  try {
+    actualCurrentWeekDate = parseWeekStart(actualCurrentWeek);
+  } catch {
+    actualCurrentWeekDate = null;
   }
 
-  if (!latestMetric || !latestMetric.week || (typeof latestMetric.value !== 'number' && typeof latestMetric.value !== 'string')) {
+  let lastWeekKey: string | undefined;
+  let twoWeeksKey: string | undefined;
+  const eightWeekTargets: string[] = [];
+
+  if (actualCurrentWeekDate) {
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    for (let i = 8; i >= 1; i--) {
+      const date = new Date(actualCurrentWeekDate.getTime() - i * WEEK_MS);
+      eightWeekTargets.push(formatDateToWeekString(date));
+    }
+    const lastWeekDate = new Date(actualCurrentWeekDate.getTime() - WEEK_MS);
+    const twoWeeksDate = new Date(actualCurrentWeekDate.getTime() - 2 * WEEK_MS);
+    lastWeekKey = formatDateToWeekString(lastWeekDate);
+    twoWeeksKey = formatDateToWeekString(twoWeeksDate);
+  }
+
+  if (eightWeekTargets.length === 0) {
+    const uniqueWeeks = Array.from(new Set(sortedMetrics.map((metric) => metric.week))).sort((a, b) => sortWeeksChronologically(a, b));
+    eightWeekTargets.push(...uniqueWeeks.slice(-8));
+  }
+
+  if (!lastWeekKey && eightWeekTargets.length > 0) {
+    lastWeekKey = eightWeekTargets[eightWeekTargets.length - 1];
+  }
+  if (!twoWeeksKey && eightWeekTargets.length > 1) {
+    twoWeeksKey = eightWeekTargets[eightWeekTargets.length - 2];
+  }
+
+  const lastWeekMetric = lastWeekKey
+    ? sortedMetrics.find((metric) => metric.week === lastWeekKey)
+    : undefined;
+  const twoWeeksMetric = twoWeeksKey
+    ? sortedMetrics.find((metric) => metric.week === twoWeeksKey)
+    : undefined;
+
+  const targetWeeks = eightWeekTargets.length > 0 ? eightWeekTargets : [lastWeekKey].filter((week): week is string => Boolean(week));
+
+  if (!lastWeekKey) {
     return (
       <div className="mb-8">
         <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
-        <p className="text-gray-500">No valid data available</p>
+        <p className="text-gray-500">Not enough data available</p>
       </div>
     );
   }
+
+  const renderMetricCard = (
+    metric: Metric | undefined,
+    weekKey: string,
+    label: string,
+    extraContent?: React.ReactNode,
+    leadEmailList?: string[],
+    clickLeadEmailList?: string[]
+  ) => (
+    <MetricCard
+      title={`${title} - ${label}`}
+      week={weekKey}
+      value={(() => {
+        if (!metric) return 0;
+        const metricValue = metric.value;
+        if (typeof metricValue === 'number') return metricValue;
+        if (typeof metricValue === 'string') return parseFloat(metricValue) || 0;
+        return 0;
+      })()}
+      percentage={metric && typeof metric.percentage === 'number' ? metric.percentage : undefined}
+      percentageLabel={percentageLabel}
+      change={metric && typeof metric.change === 'number' ? metric.change : undefined}
+      unit={unit}
+      formatValue={formatValue}
+      uniqueEmails={metric && typeof metric.uniqueEmails === 'number' ? metric.uniqueEmails : undefined}
+      avgInteractionsPerLead={metric && typeof metric.avgInteractionsPerLead === 'number' ? metric.avgInteractionsPerLead : undefined}
+      clicked={metric && typeof metric.clicked === 'number' ? metric.clicked : undefined}
+      uniqueEmailsOpened={metric && typeof metric.uniqueEmailsOpened === 'number' ? metric.uniqueEmailsOpened : undefined}
+      uniqueEmailsClicked={metric && typeof metric.uniqueEmailsClicked === 'number' ? metric.uniqueEmailsClicked : undefined}
+      uniqueLeads={metric && typeof metric.uniqueLeads === 'number' ? metric.uniqueLeads : undefined}
+      extraContent={extraContent}
+      leadEmailList={leadEmailList}
+      clickLeadEmailList={clickLeadEmailList}
+    />
+  );
 
   return (
     <div className="mb-8">
       <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <MetricCard
-          title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Current Week' : `${title} - Current Week`}
-          week={String(latestMetric.week || '')}
-          value={(() => {
-            const currentValue = latestMetric.value;
-            if (typeof currentValue === 'number') {
-              return currentValue;
-            } else if (typeof currentValue === 'string') {
-              return parseFloat(currentValue) || 0;
-            }
-            return 0;
-          })()}
-          percentage={showPercentage && typeof latestMetric.percentage === 'number' ? latestMetric.percentage : undefined}
-          percentageLabel={percentageLabel}
-          change={typeof latestMetric.change === 'number' ? latestMetric.change : undefined}
-          unit={unit}
-          formatValue={formatValue}
-          uniqueEmails={typeof latestMetric.uniqueEmails === 'number' ? latestMetric.uniqueEmails : undefined}
-          avgInteractionsPerLead={typeof latestMetric.avgInteractionsPerLead === 'number' ? latestMetric.avgInteractionsPerLead : undefined}
-                  clicked={typeof latestMetric.clicked === 'number' ? latestMetric.clicked : undefined}
-                  uniqueEmailsOpened={typeof latestMetric.uniqueEmailsOpened === 'number' ? latestMetric.uniqueEmailsOpened : undefined}
-                  uniqueEmailsClicked={typeof latestMetric.uniqueEmailsClicked === 'number' ? latestMetric.uniqueEmailsClicked : undefined}
-                  uniqueLeads={typeof latestMetric.uniqueLeads === 'number' ? latestMetric.uniqueLeads : undefined}
-                />
-                {(() => {
-                  // Find the previous week: the week immediately before the current week in the sorted data
-                  // We need to find the metric that comes chronologically before latestMetric in the sorted array
-                  let previousMetric: Metric | undefined;
-                  
-                  if (latestMetric && latestWeek) {
-                    try {
-                      // Find the index of the current week metric in the sorted array
-                      const currentWeekIndex = sortedMetrics.findIndex((m) => m.week === latestWeek);
-                      
-                      // If we found the current week and there's a metric before it, use that
-                      if (currentWeekIndex > 0) {
-                        previousMetric = sortedMetrics[currentWeekIndex - 1];
-                      } else if (currentWeekIndex === -1) {
-                        // If current week not found in array (shouldn't happen), find the most recent week < current week
-                        const currentWeekDate = parseWeekStart(latestWeek);
-                        for (let i = sortedMetrics.length - 1; i >= 0; i--) {
-                          const metric = sortedMetrics[i];
-                          try {
-                            const metricWeekDate = parseWeekStart(metric.week);
-                            if (metricWeekDate < currentWeekDate) {
-                              previousMetric = metric;
-                              break;
-                            }
-                          } catch {
-                            continue;
-                          }
-                        }
-                      }
-                    } catch {
-                      // If parsing fails, fallback to second-to-last in array
-                      if (sortedMetrics.length > 1) {
-                        previousMetric = sortedMetrics[sortedMetrics.length - 2];
-                      }
-                    }
-                  }
-                  
-                  if (!previousMetric && sortedMetrics.length > 1) {
-                    // Final fallback: use second-to-last in sorted array
-                    previousMetric = sortedMetrics[sortedMetrics.length - 2];
-                  }
-                  
-                  if (!previousMetric) {
-                    return null;
-                  }
-                  
-                  return (
-                    <MetricCard
-                      title={title === 'New DMs Conversation Start' ? 'New DMs Conversation Start - Previous Week' : `${title} - Previous Week`}
-                      week={String(previousMetric.week || '')}
-                      value={(() => {
-                        const prevValue = previousMetric.value;
-                        if (typeof prevValue === 'number') {
-                          return prevValue;
-                        } else if (typeof prevValue === 'string') {
-                          return parseFloat(prevValue) || 0;
-                        }
-                        return 0;
-                      })()}
-                      percentage={showPercentage && typeof previousMetric.percentage === 'number' ? previousMetric.percentage : undefined}
-                      percentageLabel={percentageLabel}
-                      unit={unit}
-                      formatValue={formatValue}
-                      uniqueEmails={typeof previousMetric.uniqueEmails === 'number' ? previousMetric.uniqueEmails : undefined}
-                      avgInteractionsPerLead={typeof previousMetric.avgInteractionsPerLead === 'number' ? previousMetric.avgInteractionsPerLead : undefined}
-                      clicked={typeof previousMetric.clicked === 'number' ? previousMetric.clicked : undefined}
-                      uniqueEmailsOpened={typeof previousMetric.uniqueEmailsOpened === 'number' ? previousMetric.uniqueEmailsOpened : undefined}
-                      uniqueEmailsClicked={typeof previousMetric.uniqueEmailsClicked === 'number' ? previousMetric.uniqueEmailsClicked : undefined}
-                      uniqueLeads={typeof previousMetric.uniqueLeads === 'number' ? previousMetric.uniqueLeads : undefined}
-                    />
-                  );
-                })()}
+        {renderMetricCard(
+          lastWeekMetric,
+          lastWeekKey,
+          'Last Week',
+          lastWeekMetric && (lastWeekMetric.links?.length || lastWeekMetric.deckBreakdown || lastWeekMetric.clickLeadEmails?.length)
+            ? (
+                <div className="mt-4 space-y-4">
+                  {lastWeekMetric.links?.length ? (
+                    <details className="group">
+                      <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">Links Clicked (Unique Leads)</summary>
+                      <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+                        <ul className="list-disc list-inside space-y-1 text-xs text-indigo-600">
+                          {lastWeekMetric.links.map((link) => (
+                            <li key={link} className="break-all">
+                              {link}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </details>
+                  ) : null}
+
+                  {lastWeekMetric.deckBreakdown && (
+                    <div className="text-xs text-gray-600">
+                      <p className="font-semibold text-gray-700 mb-1">Lead Magnet Breakdown</p>
+                      {lastWeekMetric.deckBreakdown.primaryCount !== undefined || lastWeekMetric.deckBreakdown.redemptiveCount !== undefined ? (
+                        <>
+                          <p>Primary Deck Sessions: {lastWeekMetric.deckBreakdown.primaryCount?.toLocaleString() ?? 0}</p>
+                          <p>Redemptive Deck Sessions: {lastWeekMetric.deckBreakdown.redemptiveCount?.toLocaleString() ?? 0}</p>
+                        </>
+                      ) : null}
+                      {lastWeekMetric.deckBreakdown.primaryUniqueVisits !== undefined || lastWeekMetric.deckBreakdown.redemptiveUniqueVisits !== undefined ? (
+                        <>
+                          <p>Primary Unique Visitors: {lastWeekMetric.deckBreakdown.primaryUniqueVisits?.toLocaleString() ?? 0}</p>
+                          <p>Redemptive Unique Visitors: {lastWeekMetric.deckBreakdown.redemptiveUniqueVisits?.toLocaleString() ?? 0}</p>
+                        </>
+                      ) : null}
+                      {lastWeekMetric.deckBreakdown.primaryAverageDuration !== undefined || lastWeekMetric.deckBreakdown.redemptiveAverageDuration !== undefined ? (
+                        <>
+                          <p>
+                            Primary Avg Session Duration:{' '}
+                            {lastWeekMetric.deckBreakdown.primaryAverageDuration !== undefined
+                              ? `${Math.round(lastWeekMetric.deckBreakdown.primaryAverageDuration)}s`
+                              : 'N/A'}
+                          </p>
+                          <p>
+                            Redemptive Avg Session Duration:{' '}
+                            {lastWeekMetric.deckBreakdown.redemptiveAverageDuration !== undefined
+                              ? `${Math.round(lastWeekMetric.deckBreakdown.redemptiveAverageDuration)}s`
+                              : 'N/A'}
+                          </p>
+                        </>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              )
+            : undefined,
+          lastWeekMetric?.leadEmails,
+          lastWeekMetric?.clickLeadEmails
+        )}
+        {twoWeeksKey &&
+          renderMetricCard(
+            twoWeeksMetric,
+            twoWeeksKey,
+            'Two Weeks Ago',
+            twoWeeksMetric && (twoWeeksMetric.links?.length || twoWeeksMetric.deckBreakdown || twoWeeksMetric.clickLeadEmails?.length)
+              ? (
+                  <div className="mt-4 space-y-4">
+                    {twoWeeksMetric.links?.length ? (
+                      <details className="group">
+                        <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">Links Clicked (Unique Leads)</summary>
+                        <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+                          <ul className="list-disc list-inside space-y-1 text-xs text-indigo-600">
+                            {twoWeeksMetric.links.map((link) => (
+                              <li key={link} className="break-all">
+                                {link}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </details>
+                    ) : null}
+
+                    {twoWeeksMetric.deckBreakdown && (
+                      <div className="text-xs text-gray-600">
+                        <p className="font-semibold text-gray-700 mb-1">Lead Magnet Breakdown</p>
+                        {twoWeeksMetric.deckBreakdown.primaryCount !== undefined || twoWeeksMetric.deckBreakdown.redemptiveCount !== undefined ? (
+                          <>
+                            <p>Primary Deck Sessions: {twoWeeksMetric.deckBreakdown.primaryCount?.toLocaleString() ?? 0}</p>
+                            <p>Redemptive Deck Sessions: {twoWeeksMetric.deckBreakdown.redemptiveCount?.toLocaleString() ?? 0}</p>
+                          </>
+                        ) : null}
+                        {twoWeeksMetric.deckBreakdown.primaryUniqueVisits !== undefined || twoWeeksMetric.deckBreakdown.redemptiveUniqueVisits !== undefined ? (
+                          <>
+                            <p>Primary Unique Visitors: {twoWeeksMetric.deckBreakdown.primaryUniqueVisits?.toLocaleString() ?? 0}</p>
+                            <p>Redemptive Unique Visitors: {twoWeeksMetric.deckBreakdown.redemptiveUniqueVisits?.toLocaleString() ?? 0}</p>
+                          </>
+                        ) : null}
+                        {twoWeeksMetric.deckBreakdown.primaryAverageDuration !== undefined || twoWeeksMetric.deckBreakdown.redemptiveAverageDuration !== undefined ? (
+                          <>
+                            <p>
+                              Primary Avg Session Duration:{' '}
+                              {twoWeeksMetric.deckBreakdown.primaryAverageDuration !== undefined
+                                ? `${Math.round(twoWeeksMetric.deckBreakdown.primaryAverageDuration)}s`
+                                : 'N/A'}
+                            </p>
+                            <p>
+                              Redemptive Avg Session Duration:{' '}
+                              {twoWeeksMetric.deckBreakdown.redemptiveAverageDuration !== undefined
+                                ? `${Math.round(twoWeeksMetric.deckBreakdown.redemptiveAverageDuration)}s`
+                                : 'N/A'}
+                            </p>
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )
+              : undefined,
+            twoWeeksMetric?.leadEmails,
+            twoWeeksMetric?.clickLeadEmails
+          )}
       </div>
-      {showChart && sortedMetrics.length > 0 && (
+
+      {showChart && (
         <div className="mb-6">
           <MetricChart
-            title={`${title} - Growth Over Time`}
+            title={`${title} - Last Two Weeks`}
             metrics={sortedMetrics}
             type={chartType}
             showPercentage={showPercentage}
             formatValue={formatValue}
             unit={unit}
+            targetWeeks={targetWeeks}
           />
         </div>
       )}

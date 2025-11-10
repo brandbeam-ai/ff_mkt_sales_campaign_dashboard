@@ -49,3 +49,4 @@ next-env.d.ts
 
 # Cron scripts (keep update-cache-cron.sh in git, but ignore if auto-generated)
 # update-cache-cron.sh
+scripts/remove_airtable_duplicates.py

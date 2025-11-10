@@ -31,6 +31,13 @@ function getCurrentWeekStart(): string {
   return `${dayStr}/${monthStr}/${yearStr}`;
 }
 
+function formatDateToWeekString(date: Date): string {
+  const dayStr = String(date.getDate()).padStart(2, '0');
+  const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+  const yearStr = date.getFullYear();
+  return `${dayStr}/${monthStr}/${yearStr}`;
+}
+
 interface MetricChartProps {
   title: string;
   metrics: Metric[];
@@ -38,6 +45,7 @@ interface MetricChartProps {
   showPercentage?: boolean;
   formatValue?: (val: number) => string;
   unit?: string;
+  targetWeeks?: string[];
 }
 
 export default function MetricChart({
@@ -47,8 +55,9 @@ export default function MetricChart({
   showPercentage = false,
   formatValue,
   unit = '',
+  targetWeeks,
 }: MetricChartProps) {
-  if (!metrics || metrics.length === 0) {
+  if ((!metrics || metrics.length === 0) && (!targetWeeks || targetWeeks.length === 0)) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
         <h3 className="text-lg font-semibold mb-4">{title}</h3>
@@ -57,42 +66,76 @@ export default function MetricChart({
     );
   }
 
-  // Prepare chart data - ensure chronological order
   const sortedMetrics = [...metrics].sort((a, b) => sortWeeksChronologically(a.week, b.week));
-  
-  // Filter out future weeks - only show weeks <= current week
-  const actualCurrentWeek = getCurrentWeekStart();
-  const actualCurrentWeekDate = parseWeekStart(actualCurrentWeek);
-  
-  const filteredMetrics = sortedMetrics.filter((metric) => {
-    try {
-      const metricWeekDate = parseWeekStart(metric.week);
-      return metricWeekDate <= actualCurrentWeekDate;
-    } catch {
-      // If parsing fails, exclude it to be safe
-      return false;
-    }
-  });
-  
-  // Limit to latest 12 weeks from the filtered (non-future) data
-  const latest12Weeks = filteredMetrics.slice(-12);
-  
-  const chartData = latest12Weeks.map((metric) => ({
-    week: formatWeekRange(metric.week),
-    weekStart: metric.week,
-    value: metric.value,
-    percentage: metric.percentage || 0,
-    clicked: metric.clicked || 0,
-    uniqueEmails: metric.uniqueEmails || 0,
-    uniqueEmailsOpened: metric.uniqueEmailsOpened || 0,
-    uniqueEmailsClicked: metric.uniqueEmailsClicked || 0,
-    uniqueLeads: metric.uniqueLeads || 0,
-    previousWeek: metric.previousWeek || 0,
-    change: metric.change || 0,
-  }));
 
-  // Check if any metric has clicked data (using latest12Weeks for consistency)
-  const hasClickedData = latest12Weeks.some((metric) => typeof metric.clicked === 'number' && metric.clicked > 0);
+  const actualCurrentWeek = getCurrentWeekStart();
+  let actualCurrentWeekDate: Date | null = null;
+  try {
+    actualCurrentWeekDate = parseWeekStart(actualCurrentWeek);
+  } catch {
+    actualCurrentWeekDate = null;
+  }
+
+  let filteredMetrics = actualCurrentWeekDate
+    ? sortedMetrics.filter((metric) => {
+        try {
+          const metricWeekDate = parseWeekStart(metric.week);
+          return metricWeekDate < actualCurrentWeekDate!;
+        } catch {
+          return false;
+        }
+      })
+    : sortedMetrics;
+
+  if (filteredMetrics.length === 0) {
+    filteredMetrics = sortedMetrics;
+  }
+
+  let weeksToPlot: string[];
+  if (targetWeeks && targetWeeks.length > 0) {
+    weeksToPlot = targetWeeks;
+  } else if (actualCurrentWeekDate) {
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    weeksToPlot = [];
+    for (let i = 8; i >= 1; i--) {
+      const date = new Date(actualCurrentWeekDate.getTime() - i * WEEK_MS);
+      weeksToPlot.push(formatDateToWeekString(date));
+    }
+  } else {
+    weeksToPlot = filteredMetrics.slice(-8).map((metric) => metric.week);
+  }
+
+  weeksToPlot = Array.from(new Set(weeksToPlot));
+
+  const chartData = weeksToPlot.map((week) => {
+    const metric =
+      filteredMetrics.find((item) => item.week === week) || sortedMetrics.find((item) => item.week === week);
+    const value = metric ? (typeof metric.value === 'number' ? metric.value : parseFloat(String(metric.value)) || 0) : 0;
+    return {
+      week: formatWeekRange(week),
+      weekStart: week,
+      value,
+      percentage: metric?.percentage || 0,
+      clicked: metric?.clicked || 0,
+      uniqueEmails: metric?.uniqueEmails || 0,
+      uniqueEmailsOpened: metric?.uniqueEmailsOpened || 0,
+      uniqueEmailsClicked: metric?.uniqueEmailsClicked || 0,
+      uniqueLeads: metric?.uniqueLeads || 0,
+      previousWeek: metric?.previousWeek || 0,
+      change: metric?.change || 0,
+    };
+  }).filter((data, index, arr) => index === arr.findIndex((d) => d.weekStart === data.weekStart));
+
+  if (chartData.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+        <h3 className="text-lg font-semibold mb-4">{title}</h3>
+        <p className="text-gray-500">No data available</p>
+      </div>
+    );
+  }
+
+  const hasClickedData = chartData.some((metric) => typeof metric.clicked === 'number' && metric.clicked > 0);
 
   const commonChildren = (
     <>

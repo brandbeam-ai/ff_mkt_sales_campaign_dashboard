@@ -8,6 +8,8 @@ export interface DMConversationDetail {
   totalMessages: number;
   firstMessageDate?: string;
   lastMessageDate?: string;
+  leadUrl?: string;
+  leadFirstName?: string;
 }
 
 export interface DMDetailMetrics {
@@ -45,7 +47,9 @@ export function calculateDMDetails(linkedinDMLog: any[]): DMDetailMetrics[] {
       const conversationId = record['Conversation_id'];
       const sender = record['Sender']?.trim() || '';
       const sentTime = record['Sent time'];
-      
+      const leadUrl = record['Lead LK URL (from DM_replied)'] || '';
+      const leadFirstName = record['Lead firstname (from DM_replied)'] || '';
+
       if (!weekStart || !conversationId) return;
 
       // Initialize week data if needed
@@ -67,11 +71,20 @@ export function calculateDMDetails(linkedinDMLog: any[]): DMDetailMetrics[] {
           messagesByMe: 0,
           messagesByCorrespondent: 0,
           totalMessages: 0,
+          leadUrl: leadUrl || undefined,
+          leadFirstName: leadFirstName || undefined,
         });
       }
 
       const conversation = weekData.conversations.get(conversationId)!;
       
+      if (!conversation.leadUrl && leadUrl) {
+        conversation.leadUrl = leadUrl;
+      }
+      if (!conversation.leadFirstName && leadFirstName) {
+        conversation.leadFirstName = leadFirstName;
+      }
+
       // Determine if sender is ME or CORRESPONDENT
       // Check if sender is empty or contains "ME" (case-insensitive)
       // Also check for common patterns that indicate our messages
