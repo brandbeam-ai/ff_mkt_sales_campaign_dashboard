@@ -127,6 +127,7 @@ export default function MetricSection({
     weekKey: string,
     label: string,
     extraContent?: React.ReactNode,
+    leadSessions?: Record<string, number>,
     leadEmailList?: string[],
     clickLeadEmailList?: string[]
   ) => (
@@ -152,6 +153,7 @@ export default function MetricSection({
       uniqueEmailsClicked={metric && typeof metric.uniqueEmailsClicked === 'number' ? metric.uniqueEmailsClicked : undefined}
       uniqueLeads={metric && typeof metric.uniqueLeads === 'number' ? metric.uniqueLeads : undefined}
       extraContent={extraContent}
+      leadSessions={leadSessions}
       leadEmailList={leadEmailList}
       clickLeadEmailList={clickLeadEmailList}
     />
@@ -245,8 +247,8 @@ export default function MetricSection({
     const linkClicks = renderLinkClicksByEmail(metric);
     const breakdown = renderDeckBreakdown(metric);
 
-    if (linkClicks) sections.push(linkClicks);
-    if (breakdown) sections.push(breakdown);
+    if (linkClicks) sections.push(<div key="links">{linkClicks}</div>);
+    if (breakdown) sections.push(<div key="breakdown">{breakdown}</div>);
 
     if (sections.length === 0) {
       return undefined;
@@ -264,6 +266,7 @@ export default function MetricSection({
           lastWeekKey,
           'Last Week',
           buildExtraContent(lastWeekMetric),
+          lastWeekMetric?.leadSessionCounts,
           lastWeekMetric?.leadEmails,
           lastWeekMetric?.clickLeadEmails
         )}
@@ -273,6 +276,7 @@ export default function MetricSection({
             twoWeeksKey,
             'Two Weeks Ago',
             buildExtraContent(twoWeeksMetric),
+            twoWeeksMetric?.leadSessionCounts,
             twoWeeksMetric?.leadEmails,
             twoWeeksMetric?.clickLeadEmails
           )}

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { sortWeeksChronologically } from './utils';
 
 export interface WeekData {
@@ -22,6 +23,7 @@ export interface Metric {
   leadEmails?: string[];
   clickLeadEmails?: string[];
   clickLinksByEmail?: Record<string, string[]>;
+  leadSessionCounts?: Record<string, number>;
   deckBreakdown?: {
     primaryCount?: number;
     redemptiveCount?: number;
@@ -797,6 +799,7 @@ export function calculateLeadMagnetMetrics(
     redemptiveUniqueMediums: Set<string>;
     primaryLeadEmails: Map<string, Set<string>>;
     redemptiveLeadEmails: Map<string, Set<string>>;
+    leadSessionCounts: Map<string, { display: string; count: number }>;
   }>();
 
   const processDeckInteraction = (record: any) => {
@@ -828,6 +831,7 @@ export function calculateLeadMagnetMetrics(
         redemptiveUniqueMediums: new Set<string>(),
         primaryLeadEmails: new Map<string, Set<string>>(),
         redemptiveLeadEmails: new Map<string, Set<string>>(),
+        leadSessionCounts: new Map<string, { display: string; count: number }>(),
       });
     }
 
@@ -850,6 +854,25 @@ export function calculateLeadMagnetMetrics(
       weekData.redemptiveDuration += duration;
     }
 
+    const emailField = record['Email (from Lead list)'];
+    const emailRaw = Array.isArray(emailField) ? emailField.find((value) => value) ?? '' : emailField ?? '';
+    const emailDisplay = String(emailRaw).trim();
+    const emailKey = emailDisplay.toLowerCase();
+    if (emailKey) {
+      const existing = weekData.leadSessionCounts.get(emailKey);
+      if (existing) {
+        existing.count += 1;
+        if (!existing.display && emailDisplay) {
+          existing.display = emailDisplay;
+        }
+      } else {
+        weekData.leadSessionCounts.set(emailKey, {
+          display: emailDisplay || emailKey,
+          count: 1,
+        });
+      }
+    }
+
     // Track unique mediums where medium contains "rec"
     // Try multiple possible field names
     const medium = record['Medium'] || 
@@ -861,7 +884,6 @@ export function calculateLeadMagnetMetrics(
     // Also check if there's a Source/medium format in the data
     const sourceMedium = record['Source / medium'] || record['Source/medium'] || '';
     const finalMedium = (medium || sourceMedium).trim();
-    const emailFromLeadList = (record['Email (from Lead list)'] || '').toString().toLowerCase();
 
     const mediumLower = finalMedium.toLowerCase();
     if (mediumLower && mediumLower.includes('rec')) {
@@ -869,8 +891,8 @@ export function calculateLeadMagnetMetrics(
       if (!weekData.leadEmails.has(finalMedium)) {
         weekData.leadEmails.set(finalMedium, new Set<string>());
       }
-      if (emailFromLeadList) {
-        weekData.leadEmails.get(finalMedium)!.add(emailFromLeadList);
+      if (emailKey) {
+        weekData.leadEmails.get(finalMedium)!.add(emailKey);
       }
 
       if (deckSource === 'primary') {
@@ -878,19 +900,20 @@ export function calculateLeadMagnetMetrics(
         if (!weekData.primaryLeadEmails.has(finalMedium)) {
           weekData.primaryLeadEmails.set(finalMedium, new Set<string>());
         }
-        if (emailFromLeadList) {
-          weekData.primaryLeadEmails.get(finalMedium)!.add(emailFromLeadList);
+        if (emailKey) {
+          weekData.primaryLeadEmails.get(finalMedium)!.add(emailKey);
         }
       } else {
         weekData.redemptiveUniqueMediums.add(finalMedium);
         if (!weekData.redemptiveLeadEmails.has(finalMedium)) {
           weekData.redemptiveLeadEmails.set(finalMedium, new Set<string>());
         }
-        if (emailFromLeadList) {
-          weekData.redemptiveLeadEmails.get(finalMedium)!.add(emailFromLeadList);
+        if (emailKey) {
+          weekData.redemptiveLeadEmails.get(finalMedium)!.add(emailKey);
         }
       }
     }
+
   };
 
   deckAnalysisInteractions.forEach((record) => processDeckInteraction(record));
@@ -950,18 +973,39 @@ export function calculateLeadMagnetMetrics(
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   const uniqueVisitsMetrics: Metric[] = Array.from(landedWeekMap.entries())
-    .map(([week, data]) => ({
-      week,
-      value: data.uniqueMediums.size,
-      uniqueVisits: data.uniqueMediums.size,
-      leadEmails: Array.from(new Set(Array.from(data.leadEmails.values()).flatMap((set) => Array.from(set))))
-        .map((email) => email)
-        .filter(Boolean),
-      deckBreakdown: {
-        primaryUniqueVisits: data.primaryUniqueMediums.size,
-        redemptiveUniqueVisits: data.redemptiveUniqueMediums.size,
-      },
-    }))
+    .map(([week, data]) => {
+      const leadSessionCounts: Record<string, number> = {};
+      data.leadSessionCounts.forEach(({ display, count }) => {
+        if (display) {
+          leadSessionCounts[display] = (leadSessionCounts[display] || 0) + count;
+        }
+      });
+
+      const leadEmailKeys = new Set<string>();
+      data.leadEmails.forEach((set) => {
+        set.forEach((emailKey) => {
+          if (emailKey) {
+            leadEmailKeys.add(emailKey);
+          }
+        });
+      });
+
+      const leadEmailsList = Array.from(leadEmailKeys)
+        .map((emailKey) => data.leadSessionCounts.get(emailKey)?.display || emailKey)
+        .filter(Boolean);
+
+      return {
+        week,
+        value: data.uniqueMediums.size,
+        uniqueVisits: data.uniqueMediums.size,
+        leadEmails: leadEmailsList,
+        leadSessionCounts,
+        deckBreakdown: {
+          primaryUniqueVisits: data.primaryUniqueMediums.size,
+          redemptiveUniqueVisits: data.redemptiveUniqueMediums.size,
+        },
+      };
+    })
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   // Calculate WoW changes

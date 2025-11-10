@@ -497,7 +497,7 @@ export default function Dashboard() {
                   </p>
                   <ul className="list-disc list-inside space-y-1">
                     <li><strong>Total Clicks:</strong> Number of times the &quot;Book a Call&quot; button was clicked on the FF landing page (counted in the week the click occurred)</li>
-                    <li><strong>% of Section vs Click Book a Call:</strong> Click-through rate showing what percentage of visitors who landed on the FF landing page clicked the &quot;Book a Call&quot; button</li>
+                    <li><strong>% of Landed vs Clicked Book a Call:</strong> Click-through rate showing what percentage of visitors who landed on the FF landing page clicked the &quot;Book a Call&quot; button</li>
                     <li><strong>How it works:</strong> The metric calculates (Button Clicks ÷ Landed Sessions) × 100</li>
                     <li><strong>What it means:</strong> Of all visitors who landed on the FF landing page in a given week, what percentage clicked the &quot;Book a Call&quot; button?</li>
                     <li><strong>Example:</strong> If 1000 people landed on the FF landing page and 50 clicked the &quot;Book a Call&quot; button, the click-through rate is 5%</li>
@@ -516,7 +516,7 @@ export default function Dashboard() {
                   chartType="bar"
                 />
                 <MetricSection
-                  title="% of Section vs Click Book a Call"
+                  title="% of Landed vs Clicked Book a Call"
                   metrics={salesFunnelMetrics.clickToLanded}
                   showPercentage={false}
                   unit="%"

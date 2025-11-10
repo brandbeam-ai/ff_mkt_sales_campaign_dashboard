@@ -19,6 +19,7 @@ interface MetricCardProps {
   uniqueLeads?: number;
   extraContent?: React.ReactNode;
   leadEmailList?: string[];
+  leadSessions?: Record<string, number>;
   clickLeadEmailList?: string[];
 }
 
@@ -39,6 +40,7 @@ export default function MetricCard({
   uniqueLeads,
   extraContent,
   leadEmailList,
+  leadSessions,
   clickLeadEmailList,
 }: MetricCardProps) {
   // Ensure week is a string
@@ -69,6 +71,18 @@ export default function MetricCard({
 
   const changeIcon = change ? (change > 0 ? '↑' : change < 0 ? '↓' : '→') : '';
 
+  const sessionEntries = leadSessions
+    ? Object.entries(leadSessions)
+        .filter(([email, count]) => Boolean(email) && count > 0)
+        .sort((a, b) => {
+          if (b[1] === a[1]) {
+            return a[0].localeCompare(b[0]);
+          }
+          return b[1] - a[1];
+        })
+    : [];
+  const hasLeadSessions = sessionEntries.length > 0;
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
       <h3 className="text-sm font-semibold text-gray-700 mb-2">{title}</h3>
@@ -94,6 +108,11 @@ export default function MetricCard({
               Clicks: {clicked}
             </p>
           )}
+          {avgInteractionsPerLead !== undefined && (
+            <p className="text-xs text-gray-500 mt-1">
+              Avg interactions per lead: {avgInteractionsPerLead.toFixed(1)}
+            </p>
+          )}
           {uniqueEmailsOpened !== undefined && (
             <p className="text-xs text-gray-500 mt-1">
               Unique leads opened: {uniqueEmailsOpened}
@@ -117,7 +136,23 @@ export default function MetricCard({
         )}
       </div>
       {extraContent && <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">{extraContent}</div>}
-      {leadEmailList && leadEmailList.length > 0 && (
+      {hasLeadSessions && (
+        <details className="mt-4">
+          <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+            Unique Lead Emails
+          </summary>
+          <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+            <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
+              {sessionEntries.map(([email, count]) => (
+                <li key={email} className="wrap-break-word">
+                  {email} (Sessions: {count})
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+      {!hasLeadSessions && leadEmailList && leadEmailList.length > 0 && (
         <details className="mt-4">
           <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
             Unique Lead Emails
@@ -125,7 +160,7 @@ export default function MetricCard({
           <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
             <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
               {leadEmailList.map((email) => (
-                <li key={email} className="break-all">
+                <li key={email} className="wrap-break-word">
                   {email}
                 </li>
               ))}
@@ -141,7 +176,7 @@ export default function MetricCard({
           <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
             <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
               {clickLeadEmailList.map((email) => (
-                <li key={email} className="break-all">
+                <li key={email} className="wrap-break-word">
                   {email}
                 </li>
               ))}
