@@ -40,6 +40,7 @@ interface MetricSectionProps {
   unit?: string;
   showChart?: boolean;
   chartType?: 'line' | 'bar';
+  hideTitle?: boolean;
 }
 
 export default function MetricSection({
@@ -52,6 +53,7 @@ export default function MetricSection({
   unit = '',
   showChart = true,
   chartType = 'line',
+  hideTitle = false,
 }: MetricSectionProps) {
   // Filter out invalid metrics and ensure we have valid data
   const validMetrics = metrics.filter((m) => m && typeof m.week === 'string' && (typeof m.value === 'number' || typeof m.value === 'string'));
@@ -62,7 +64,7 @@ export default function MetricSection({
   if (sortedMetrics.length === 0) {
     return (
       <div className="mb-8">
-        <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
+        {!hideTitle && <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>}
         <p className="text-gray-500">No data available</p>
       </div>
     );
@@ -116,7 +118,7 @@ export default function MetricSection({
   if (!lastWeekKey) {
     return (
       <div className="mb-8">
-        <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
+        {!hideTitle && <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>}
         <p className="text-gray-500">Not enough data available</p>
       </div>
     );
@@ -129,7 +131,12 @@ export default function MetricSection({
     extraContent?: React.ReactNode,
     leadSessions?: Record<string, number>,
     leadEmailList?: string[],
-    clickLeadEmailList?: string[]
+    clickLeadEmailList?: string[],
+    highInterestLeads?: string[],
+    bounceLeads?: string[],
+    highInterestCount?: number,
+    bounceCount?: number,
+    leadCountLabel?: string
   ) => (
     <MetricCard
       title={`${title} - ${label}`}
@@ -156,6 +163,11 @@ export default function MetricSection({
       leadSessions={leadSessions}
       leadEmailList={leadEmailList}
       clickLeadEmailList={clickLeadEmailList}
+      highInterestCount={highInterestCount}
+      bounceCount={bounceCount}
+      highInterestLeads={highInterestLeads}
+      bounceLeads={bounceLeads}
+      leadCountLabel={leadCountLabel}
     />
   );
 
@@ -259,7 +271,7 @@ export default function MetricSection({
 
   return (
     <div className="mb-8">
-      <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>
+      {!hideTitle && <h4 className="text-lg font-semibold mb-4 text-gray-800">{title}</h4>}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {renderMetricCard(
           lastWeekMetric,
@@ -268,7 +280,12 @@ export default function MetricSection({
           buildExtraContent(lastWeekMetric),
           lastWeekMetric?.leadSessionCounts,
           lastWeekMetric?.leadEmails,
-          lastWeekMetric?.clickLeadEmails
+          lastWeekMetric?.clickLeadEmails,
+          lastWeekMetric?.highInterestLeads,
+          lastWeekMetric?.bounceLeads,
+          lastWeekMetric?.highInterestCount,
+          lastWeekMetric?.bounceCount,
+          lastWeekMetric?.leadCountLabel
         )}
         {twoWeeksKey &&
           renderMetricCard(
@@ -278,7 +295,12 @@ export default function MetricSection({
             buildExtraContent(twoWeeksMetric),
             twoWeeksMetric?.leadSessionCounts,
             twoWeeksMetric?.leadEmails,
-            twoWeeksMetric?.clickLeadEmails
+            twoWeeksMetric?.clickLeadEmails,
+            twoWeeksMetric?.highInterestLeads,
+            twoWeeksMetric?.bounceLeads,
+            twoWeeksMetric?.highInterestCount,
+            twoWeeksMetric?.bounceCount,
+            twoWeeksMetric?.leadCountLabel
           )}
       </div>
 

@@ -29,6 +29,11 @@ export interface Metric {
   success?: number;
   failed?: number;
   leadsOpenedMultiple?: number;
+  highInterestCount?: number;
+  bounceCount?: number;
+  highInterestLeads?: string[];
+  bounceLeads?: string[];
+  leadCountLabel?: string;
   deckBreakdown?: {
     primaryCount?: number;
     redemptiveCount?: number;
@@ -357,17 +362,21 @@ export function calculateAnalysisResultEmailInteractionMetrics(
   emailInteractions: any[]
 ): Metric[] {
   // Filter for analysis result email interactions (lead magnet deck analysis reports)
-  return calculateEmailInteractionMetricsByTag(
+  const metrics = calculateEmailInteractionMetricsByTag(
     emailInteractions,
     (tag) => {
-      const tagLower = (tag || '').toLowerCase();
-      return tagLower.includes('analysis') || 
-             tagLower.includes('result') ||
-             tagLower.includes('lead magnet') ||
-             tagLower.includes('deck analysis') ||
-             tagLower.includes('report');
+      if (Array.isArray(tag)) {
+        return tag.some((entry) => (entry || '').toString().toLowerCase().includes('analysis_result'));
+      }
+      const tagLower = (tag || '').toString().toLowerCase();
+      return tagLower.includes('analysis_result');
     }
   );
+
+  return metrics.map((metric) => ({
+    ...metric,
+    uniqueEmails: undefined,
+  }));
 }
 
 export function calculateDMMetrics(linkedinDMLog: any[]): Metric[] {
@@ -771,6 +780,9 @@ export function calculateLeadMagnetMetrics(
     primaryLeadEmails: Map<string, Set<string>>;
     redemptiveLeadEmails: Map<string, Set<string>>;
     leadSessionCounts: Map<string, { display: string; count: number }>;
+    emailLookup: Map<string, string>;
+    highInterestEmails: Set<string>;
+    bounceEmails: Set<string>;
   }>();
 
   const processDeckInteraction = (record: any) => {
@@ -803,6 +815,9 @@ export function calculateLeadMagnetMetrics(
         primaryLeadEmails: new Map<string, Set<string>>(),
         redemptiveLeadEmails: new Map<string, Set<string>>(),
         leadSessionCounts: new Map<string, { display: string; count: number }>(),
+        emailLookup: new Map<string, string>(),
+        highInterestEmails: new Set<string>(),
+        bounceEmails: new Set<string>(),
       });
     }
 
@@ -819,28 +834,35 @@ export function calculateLeadMagnetMetrics(
 
     const duration = Number(record['Session Duration (second)'] || 0);
     weekData.totalDuration += duration;
-    if (deckSource === 'primary') {
-      weekData.primaryDuration += duration;
-    } else {
-      weekData.redemptiveDuration += duration;
-    }
-
-    const emailField = record['Email (from Lead list)'];
-    const emailRaw = Array.isArray(emailField) ? emailField.find((value) => value) ?? '' : emailField ?? '';
-    const emailDisplay = String(emailRaw).trim();
-    const emailKey = emailDisplay.toLowerCase();
+    const emailFieldRaw = record['Email (from Lead list)'];
+    const emailDisplay = Array.isArray(emailFieldRaw)
+      ? (emailFieldRaw.find((value) => value) ?? '')
+      : (emailFieldRaw ?? '').toString();
+    const emailKey = emailDisplay.trim().toLowerCase();
     if (emailKey) {
-      const existing = weekData.leadSessionCounts.get(emailKey);
-      if (existing) {
-        existing.count += 1;
-        if (!existing.display && emailDisplay) {
-          existing.display = emailDisplay;
+      if (!weekData.emailLookup.has(emailKey)) {
+        weekData.emailLookup.set(emailKey, emailDisplay || emailKey);
+      }
+
+      const existingSessions = weekData.leadSessionCounts.get(emailKey);
+      if (existingSessions) {
+        existingSessions.count += 1;
+        if (!existingSessions.display && emailDisplay) {
+          existingSessions.display = emailDisplay;
         }
       } else {
         weekData.leadSessionCounts.set(emailKey, {
           display: emailDisplay || emailKey,
           count: 1,
         });
+      }
+
+      if (duration > 20) {
+        weekData.highInterestEmails.add(emailKey);
+      }
+
+      if (duration > 0 && duration < 10) {
+        weekData.bounceEmails.add(emailKey);
       }
     }
 
@@ -891,7 +913,7 @@ export function calculateLeadMagnetMetrics(
   redemptiveDeckAnalysisInteractions.forEach((record) => processDeckInteraction(record));
 
   // Process deck submissions - track both total submissions and unique leads
-  const submissionWeekMap = new Map<string, { submissions: number; uniqueLeads: Set<string> }>();
+  const submissionWeekMap = new Map<string, { submissions: number; uniqueLeads: Map<string, { count: number; display: string }> }>();
   deckReports.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const email = record['Email'] || '';
@@ -899,15 +921,26 @@ export function calculateLeadMagnetMetrics(
     if (!weekStart) return;
 
     if (!submissionWeekMap.has(weekStart)) {
-      submissionWeekMap.set(weekStart, { submissions: 0, uniqueLeads: new Set<string>() });
+      submissionWeekMap.set(weekStart, { submissions: 0, uniqueLeads: new Map<string, { count: number; display: string }>() });
     }
     
     const weekData = submissionWeekMap.get(weekStart)!;
     weekData.submissions++;
     
-    // Track unique leads (by email)
     if (email) {
-      weekData.uniqueLeads.add(email.toLowerCase());
+      const emailKey = email.toString().trim().toLowerCase();
+      const existing = weekData.uniqueLeads.get(emailKey);
+      if (existing) {
+        existing.count += 1;
+        if (!existing.display && email) {
+          existing.display = email.toString();
+        }
+      } else {
+        weekData.uniqueLeads.set(emailKey, {
+          count: 1,
+          display: email.toString(),
+        });
+      }
     }
   });
 
@@ -923,24 +956,44 @@ export function calculateLeadMagnetMetrics(
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   const avgDurationMetrics: Metric[] = Array.from(landedWeekMap.entries())
-    .map(([week, data]) => ({
-      week,
-      value: data.sessions > 0 ? data.totalDuration / data.sessions : 0,
-      deckBreakdown: {
-        primaryAverageDuration:
-          data.primaryCount > 0 ? data.primaryDuration / data.primaryCount : undefined,
-        redemptiveAverageDuration:
-          data.redemptiveCount > 0 ? data.redemptiveDuration / data.redemptiveCount : undefined,
-      },
-    }))
+    .map(([week, data]) => {
+      const highInterestList = Array.from(data.highInterestEmails).map(
+        (emailKey) => data.emailLookup.get(emailKey) || emailKey
+      );
+      const bounceList = Array.from(data.bounceEmails).map(
+        (emailKey) => data.emailLookup.get(emailKey) || emailKey
+      );
+
+      return {
+        week,
+        value: highInterestList.length,
+        highInterestCount: highInterestList.length,
+        bounceCount: bounceList.length,
+        highInterestLeads: highInterestList,
+        bounceLeads: bounceList,
+      };
+    })
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   const submissionMetrics: Metric[] = Array.from(submissionWeekMap.entries())
-    .map(([week, data]) => ({
-      week,
-      value: data.submissions,
-      uniqueLeads: data.uniqueLeads.size,
-    }))
+    .map(([week, data]) => {
+      const leadCounts: Record<string, number> = {};
+      const leadEmailList: string[] = [];
+      data.uniqueLeads.forEach(({ count, display }, emailKey) => {
+        const label = display || emailKey;
+        leadCounts[label] = (leadCounts[label] || 0) + count;
+        leadEmailList.push(label);
+      });
+
+      return {
+        week,
+        value: data.submissions,
+        uniqueLeads: data.uniqueLeads.size,
+        leadEmails: leadEmailList,
+        leadSessionCounts: leadCounts,
+        leadCountLabel: 'Submissions',
+      };
+    })
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   const uniqueVisitsMetrics: Metric[] = Array.from(landedWeekMap.entries())
@@ -962,7 +1015,9 @@ export function calculateLeadMagnetMetrics(
       });
 
       const leadEmailsList = Array.from(leadEmailKeys)
-        .map((emailKey) => data.leadSessionCounts.get(emailKey)?.display || emailKey)
+        .map((emailKey) =>
+          data.leadSessionCounts.get(emailKey)?.display || data.emailLookup.get(emailKey) || emailKey
+        )
         .filter(Boolean);
 
       return {
@@ -971,6 +1026,7 @@ export function calculateLeadMagnetMetrics(
         uniqueVisits: data.uniqueMediums.size,
         leadEmails: leadEmailsList,
         leadSessionCounts,
+        leadCountLabel: 'Sessions',
         deckBreakdown: {
           primaryUniqueVisits: data.primaryUniqueMediums.size,
           redemptiveUniqueVisits: data.redemptiveUniqueMediums.size,
@@ -1014,6 +1070,9 @@ export function calculateSalesFunnelMetrics(
     uniqueMediums: Set<string>; // Track unique mediums where medium contains "rec"
     leadEmails: Map<string, Set<string>>;
     clickEmails: Set<string>;
+    emailLookup: Map<string, string>;
+    highInterestEmails: Set<string>;
+    bounceEmails: Set<string>;
   }>();
 
   // Track bookings completed (from Book a Call table)
@@ -1062,6 +1121,9 @@ export function calculateSalesFunnelMetrics(
         uniqueMediums: new Set<string>(),
         leadEmails: new Map<string, Set<string>>(),
         clickEmails: new Set<string>(),
+        emailLookup: new Map<string, string>(),
+        highInterestEmails: new Set<string>(),
+        bounceEmails: new Set<string>(),
       });
     }
 
@@ -1069,7 +1131,7 @@ export function calculateSalesFunnelMetrics(
     weekData.sessions++;
     weekData.count++;
 
-    const duration = record['Session Duration (second)'] || 0;
+    const duration = Number(record['Session Duration (second)'] || 0);
     weekData.totalDuration += duration;
 
     const clicks = record['Click book a call button'] || 0;
@@ -1094,14 +1156,30 @@ export function calculateSalesFunnelMetrics(
       // Multiple sessionIDs can share the same medium
       weekData.uniqueMediums.add(finalMedium);
     }
-    const emailFromLeadList = (record['Email (from Lead list)'] || '').toString().toLowerCase();
+    const emailFieldRaw = record['Email (from Lead list)'];
+    const emailDisplay = Array.isArray(emailFieldRaw)
+      ? (emailFieldRaw.find((value) => value) ?? '')
+      : (emailFieldRaw ?? '').toString();
+    const emailKey = emailDisplay.trim().toLowerCase();
 
-    if (emailFromLeadList) {
-      weekData.clickEmails.add(emailFromLeadList);
+    if (emailKey) {
+      if (!weekData.emailLookup.has(emailKey)) {
+        weekData.emailLookup.set(emailKey, emailDisplay || emailKey);
+      }
+
+      weekData.clickEmails.add(emailKey);
       if (!weekData.leadEmails.has(finalMedium)) {
         weekData.leadEmails.set(finalMedium, new Set<string>());
       }
-      weekData.leadEmails.get(finalMedium)!.add(emailFromLeadList);
+      weekData.leadEmails.get(finalMedium)!.add(emailKey);
+
+      if (duration > 20) {
+        weekData.highInterestEmails.add(emailKey);
+      }
+
+      if (duration > 0 && duration < 10) {
+        weekData.bounceEmails.add(emailKey);
+      }
     }
   });
 
@@ -1113,17 +1191,30 @@ export function calculateSalesFunnelMetrics(
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   const avgDurationMetrics: Metric[] = Array.from(landedWeekMap.entries())
-    .map(([week, data]) => ({
-      week,
-      value: data.sessions > 0 ? data.totalDuration / data.sessions : 0,
-    }))
+    .map(([week, data]) => {
+      const highInterestList = Array.from(data.highInterestEmails).map(
+        (emailKey) => data.emailLookup.get(emailKey) || emailKey
+      );
+      const bounceList = Array.from(data.bounceEmails).map(
+        (emailKey) => data.emailLookup.get(emailKey) || emailKey
+      );
+
+      return {
+        week,
+        value: highInterestList.length,
+        highInterestCount: highInterestList.length,
+        bounceCount: bounceList.length,
+        highInterestLeads: highInterestList,
+        bounceLeads: bounceList,
+      };
+    })
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
   const clicksMetrics: Metric[] = Array.from(landedWeekMap.entries())
     .map(([week, data]) => ({
       week,
       value: data.clicks,
-      clickLeadEmails: Array.from(data.clickEmails),
+      clickLeadEmails: Array.from(data.clickEmails).map((emailKey) => data.emailLookup.get(emailKey) || emailKey),
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));
 
@@ -1147,7 +1238,7 @@ export function calculateSalesFunnelMetrics(
       value: data.uniqueMediums.size,
       uniqueVisits: data.uniqueMediums.size,
       leadEmails: Array.from(new Set(Array.from(data.leadEmails.values()).flatMap((set) => Array.from(set))))
-        .map((email) => email)
+        .map((emailKey) => data.emailLookup.get(emailKey) || emailKey)
         .filter(Boolean),
     }))
     .sort((a, b) => sortWeeksChronologically(a.week, b.week));

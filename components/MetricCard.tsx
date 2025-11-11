@@ -21,6 +21,11 @@ interface MetricCardProps {
   leadEmailList?: string[];
   leadSessions?: Record<string, number>;
   clickLeadEmailList?: string[];
+  highInterestCount?: number;
+  bounceCount?: number;
+  highInterestLeads?: string[];
+  bounceLeads?: string[];
+  leadCountLabel?: string;
 }
 
 export default function MetricCard({
@@ -42,6 +47,11 @@ export default function MetricCard({
   leadEmailList,
   leadSessions,
   clickLeadEmailList,
+  highInterestCount,
+  bounceCount,
+  highInterestLeads,
+  bounceLeads,
+  leadCountLabel,
 }: MetricCardProps) {
   // Ensure week is a string
   const weekStr = typeof week === 'string' ? week : String(week || '');
@@ -83,6 +93,8 @@ export default function MetricCard({
     : [];
   const hasLeadSessions = sessionEntries.length > 0;
 
+  const leadCountLabelText = leadCountLabel ?? 'Sessions';
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
       <h3 className="text-sm font-semibold text-gray-700 mb-2">{title}</h3>
@@ -98,12 +110,7 @@ export default function MetricCard({
               {percentage.toFixed(1)}% {percentageLabel}
             </p>
           )}
-          {uniqueEmails !== undefined && uniqueEmailsOpened === undefined && uniqueEmailsClicked === undefined && (
-            <p className="text-xs text-gray-500 mt-1">
-              Unique leads: {uniqueEmails}
-            </p>
-          )}
-          {clicked !== undefined && (
+          {clicked !== undefined && uniqueEmailsClicked === undefined && (
             <p className="text-xs text-gray-500 mt-1">
               Clicks: {clicked}
             </p>
@@ -113,20 +120,31 @@ export default function MetricCard({
               Avg interactions per lead: {avgInteractionsPerLead.toFixed(1)}
             </p>
           )}
-          {uniqueEmailsOpened !== undefined && (
-            <p className="text-xs text-gray-500 mt-1">
-              Unique leads opened: {uniqueEmailsOpened}
-            </p>
+          {(uniqueEmails !== undefined || uniqueEmailsOpened !== undefined || uniqueEmailsClicked !== undefined || uniqueLeads !== undefined) && (
+            <div className="mt-2 space-y-1 text-xs text-gray-500">
+              {uniqueEmails !== undefined && (
+                <p>Unique leads (sent): {uniqueEmails.toLocaleString()}</p>
+              )}
+              {uniqueEmailsOpened !== undefined && (
+                <p>Unique leads opened: {uniqueEmailsOpened.toLocaleString()}</p>
+              )}
+              {uniqueEmailsClicked !== undefined && (
+                <p>Unique leads clicked: {uniqueEmailsClicked.toLocaleString()}</p>
+              )}
+              {uniqueLeads !== undefined && uniqueEmails === undefined && (
+                <p>Unique leads: {uniqueLeads.toLocaleString()}</p>
+              )}
+            </div>
           )}
-          {uniqueEmailsClicked !== undefined && (
-            <p className="text-xs text-gray-500 mt-1">
-              Unique leads clicked: {uniqueEmailsClicked}
-            </p>
-          )}
-          {uniqueLeads !== undefined && (
-            <p className="text-xs text-gray-500 mt-1">
-              Unique leads: {uniqueLeads}
-            </p>
+          {(highInterestCount !== undefined || bounceCount !== undefined) && (
+            <div className="mt-2 space-y-1 text-xs text-gray-500">
+              {highInterestCount !== undefined && (
+                <p>Leads &gt; 20s: {highInterestCount.toLocaleString()}</p>
+              )}
+              {bounceCount !== undefined && (
+                <p>Leads &lt; 10s: {bounceCount.toLocaleString()}</p>
+              )}
+            </div>
           )}
         </div>
         {change !== undefined && (
@@ -145,7 +163,7 @@ export default function MetricCard({
             <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
               {sessionEntries.map(([email, count]) => (
                 <li key={email} className="wrap-break-word">
-                  {email} (Sessions: {count})
+                  {email} ({leadCountLabelText}: {count})
                 </li>
               ))}
             </ul>
@@ -177,6 +195,38 @@ export default function MetricCard({
             <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
               {clickLeadEmailList.map((email) => (
                 <li key={email} className="wrap-break-word">
+                  {email}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+      {highInterestLeads && highInterestLeads.length > 0 && (
+        <details className="mt-4">
+          <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+            Leads &gt; 20 Seconds
+          </summary>
+          <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+            <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
+              {highInterestLeads.map((email) => (
+                <li key={`high-${email}`} className="wrap-break-word">
+                  {email}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+      {bounceLeads && bounceLeads.length > 0 && (
+        <details className="mt-4">
+          <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+            Leads &lt; 10 Seconds
+          </summary>
+          <div className="max-h-48 overflow-y-auto mt-2 pr-2 border border-gray-200 rounded-md bg-gray-50">
+            <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
+              {bounceLeads.map((email) => (
+                <li key={`bounce-${email}`} className="wrap-break-word">
                   {email}
                 </li>
               ))}

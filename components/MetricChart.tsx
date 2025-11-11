@@ -107,24 +107,51 @@ export default function MetricChart({
 
   weeksToPlot = Array.from(new Set(weeksToPlot));
 
-  const chartData = weeksToPlot.map((week) => {
-    const metric =
-      filteredMetrics.find((item) => item.week === week) || sortedMetrics.find((item) => item.week === week);
-    const value = metric ? (typeof metric.value === 'number' ? metric.value : parseFloat(String(metric.value)) || 0) : 0;
-    return {
-      week: formatWeekRange(week),
-      weekStart: week,
-      value,
-      percentage: metric?.percentage || 0,
-      clicked: metric?.clicked || 0,
-      uniqueEmails: metric?.uniqueEmails || 0,
-      uniqueEmailsOpened: metric?.uniqueEmailsOpened || 0,
-      uniqueEmailsClicked: metric?.uniqueEmailsClicked || 0,
-      uniqueLeads: metric?.uniqueLeads || 0,
-      previousWeek: metric?.previousWeek || 0,
-      change: metric?.change || 0,
-    };
-  }).filter((data, index, arr) => index === arr.findIndex((d) => d.weekStart === data.weekStart));
+  const chartData = weeksToPlot
+    .map((week) => {
+      const metric =
+        filteredMetrics.find((item) => item.week === week) || sortedMetrics.find((item) => item.week === week);
+
+      if (!metric) {
+        return {
+          week: formatWeekRange(week),
+          weekStart: week,
+          value: 0,
+          percentage: 0,
+          clicked: 0,
+          uniqueEmails: undefined,
+          uniqueEmailsOpened: undefined,
+          uniqueEmailsClicked: undefined,
+          uniqueLeads: undefined,
+          previousWeek: 0,
+          change: 0,
+        };
+      }
+
+      const value = typeof metric.value === 'number' ? metric.value : parseFloat(String(metric.value)) || 0;
+      const uniqueEmails = typeof metric.uniqueEmails === 'number' && metric.uniqueEmails > 0 ? metric.uniqueEmails : undefined;
+      const uniqueEmailsOpened = typeof metric.uniqueEmailsOpened === 'number' && metric.uniqueEmailsOpened > 0
+        ? metric.uniqueEmailsOpened
+        : undefined;
+      const uniqueEmailsClicked = typeof metric.uniqueEmailsClicked === 'number' && metric.uniqueEmailsClicked > 0
+        ? metric.uniqueEmailsClicked
+        : undefined;
+
+      return {
+        week: formatWeekRange(week),
+        weekStart: week,
+        value,
+        percentage: metric.percentage || 0,
+        clicked: metric.clicked || 0,
+        uniqueEmails: uniqueEmails ?? null,
+        uniqueEmailsOpened: uniqueEmailsOpened ?? null,
+        uniqueEmailsClicked: uniqueEmailsClicked ?? null,
+        uniqueLeads: metric.uniqueLeads || 0,
+        previousWeek: metric.previousWeek || 0,
+        change: metric.change || 0,
+      };
+    })
+    .filter((data, index, arr) => index === arr.findIndex((d) => d.weekStart === data.weekStart));
 
   if (chartData.length === 0) {
     return (
@@ -136,6 +163,12 @@ export default function MetricChart({
   }
 
   const hasClickedData = chartData.some((metric) => typeof metric.clicked === 'number' && metric.clicked > 0);
+  const hasUniqueSeries = chartData.some(
+    (metric) =>
+      typeof metric.uniqueEmails === 'number' ||
+      typeof metric.uniqueEmailsOpened === 'number' ||
+      typeof metric.uniqueEmailsClicked === 'number'
+  );
 
   const commonChildren = (
     <>
@@ -170,9 +203,13 @@ export default function MetricChart({
         }}
         formatter={(value: number, name: string, props?: { payload?: { uniqueEmailsOpened?: number; uniqueEmailsClicked?: number } }) => {
           const payload = props?.payload || {};
-          
-          if (formatValue) {
+
+          if (formatValue && typeof value === 'number') {
             return formatValue(value);
+          }
+
+          if (typeof value !== 'number') {
+            return 'N/A';
           }
           
           // For Opens and Clicks, show both total and unique counts
@@ -210,7 +247,34 @@ export default function MetricChart({
         content={({ active, payload, label }) => {
           if (active && payload && payload.length > 0) {
             const data = payload[0].payload;
-            
+
+            if (hasUniqueSeries) {
+              return (
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                  }}
+                >
+                  <div style={{ color: '#111827', fontWeight: 'bold', fontSize: '14px', marginBottom: '10px', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px' }}>
+                    Week: {label}
+                  </div>
+                  <div style={{ color: '#4f46e5', fontWeight: '600', fontSize: '13px', marginBottom: '6px' }}>
+                    Unique sent: {typeof data.uniqueEmails === 'number' ? data.uniqueEmails.toLocaleString() : 'N/A'}
+                  </div>
+                  <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '13px', marginBottom: '6px' }}>
+                    Unique opened: {typeof data.uniqueEmailsOpened === 'number' ? data.uniqueEmailsOpened.toLocaleString() : 'N/A'}
+                  </div>
+                  <div style={{ color: '#ef4444', fontWeight: '600', fontSize: '13px' }}>
+                    Unique clicked: {typeof data.uniqueEmailsClicked === 'number' ? data.uniqueEmailsClicked.toLocaleString() : 'N/A'}
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 style={{
@@ -224,7 +288,7 @@ export default function MetricChart({
                 <div style={{ color: '#111827', fontWeight: 'bold', fontSize: '14px', marginBottom: '10px', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px' }}>
                   Week: {label}
                 </div>
-                {hasClickedData && (
+                {hasClickedData ? (
                   <>
                     <div style={{ marginBottom: '8px' }}>
                       <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '13px' }}>
@@ -247,8 +311,7 @@ export default function MetricChart({
                       )}
                     </div>
                   </>
-                )}
-                {!hasClickedData && (
+                ) : (
                   <>
                     <div style={{ color: '#374151', fontSize: '13px', fontWeight: '600', marginBottom: (data.uniqueEmails > 0 || data.uniqueLeads > 0) ? '4px' : '0' }}>
                       {unit || 'Value'}: {data.value?.toLocaleString() || 0}
@@ -301,6 +364,36 @@ export default function MetricChart({
                   dot={{ r: 4 }}
                 />
               </>
+            ) : hasUniqueSeries ? (
+              <>
+                <Line
+                  type="monotone"
+                  dataKey="uniqueEmails"
+                  stroke="#4f46e5"
+                  strokeWidth={2}
+                  name="Unique Sent"
+                  dot={{ r: 4 }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="uniqueEmailsOpened"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  name="Unique Opened"
+                  dot={{ r: 4 }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="uniqueEmailsClicked"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  name="Unique Clicked"
+                  dot={{ r: 4 }}
+                  connectNulls
+                />
+              </>
             ) : hasClickedData ? (
               <>
                 <Line
@@ -338,6 +431,12 @@ export default function MetricChart({
               <>
                 <Bar dataKey="value" fill="#3b82f6" name="Value" />
                 <Bar dataKey="percentage" fill="#10b981" name="Percentage (%)" />
+              </>
+            ) : hasUniqueSeries ? (
+              <>
+                <Bar dataKey="uniqueEmails" fill="#4f46e5" name="Unique Sent" />
+                <Bar dataKey="uniqueEmailsOpened" fill="#3b82f6" name="Unique Opened" />
+                <Bar dataKey="uniqueEmailsClicked" fill="#ef4444" name="Unique Clicked" />
               </>
             ) : hasClickedData ? (
               <>

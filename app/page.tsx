@@ -36,6 +36,22 @@ interface FunnelData {
   error?: string;
 }
 
+interface ClaudeAnalysis {
+  weekRange?: string;
+  marketingHighlights: string[];
+  salesHighlights: string[];
+  risks: string[];
+  nextActions: string[];
+}
+
+interface ClaudeReport {
+  generatedAt: string;
+  weekRange: string;
+  marketingMetrics?: unknown;
+  salesMetrics?: unknown;
+  analysis: ClaudeAnalysis;
+}
+
 type TabId = 'summary' | 'marketing' | 'linkedinDm' | 'sales';
 
 type TabConfig = {
@@ -58,11 +74,6 @@ interface SummaryValueFormatting {
   decimals?: number;
   suffix?: string;
   valueFormatter?: (value: number) => string;
-}
-
-interface SummaryCardOptions extends SummaryValueFormatting {
-  secondary?: (metric: Metric, previous?: Metric) => string | undefined;
-  note?: (metric: Metric, previous?: Metric) => string | undefined;
 }
 
 interface SummaryCard {
@@ -128,6 +139,10 @@ function formatSummaryValue(value: number, options: SummaryValueFormatting = {})
   return formatted;
 }
 
+function formatWeekFromMetric(metric?: Metric) {
+  return metric && typeof metric.week === 'string' ? formatWeekRange(metric.week) : undefined;
+}
+
 function getRecentMetricsForSummary(metricSeries: Metric[]): SummaryCardContext {
   if (!Array.isArray(metricSeries)) {
     return {};
@@ -167,43 +182,103 @@ function getRecentMetricsForSummary(metricSeries: Metric[]): SummaryCardContext 
   return { lastWeek, previous };
 }
 
-function buildSummaryCard(
-  key: string,
-  title: string,
-  series: Metric[],
-  options: SummaryCardOptions = {}
-): { card: SummaryCard | null; context: SummaryCardContext } {
-  const context = getRecentMetricsForSummary(series);
-  const { lastWeek, previous } = context;
+function combineEmailMetrics(sentMetrics: Metric[], interactionMetrics: Metric[]): Metric[] {
+  const weekMap = new Map<string, Metric>();
 
-  if (!lastWeek) {
-    return { card: null, context };
+  sentMetrics.forEach((metric) => {
+    if (!metric || typeof metric.week !== 'string') return;
+    const uniqueSent = typeof metric.uniqueEmails === 'number'
+      ? metric.uniqueEmails
+      : typeof metric.value === 'number'
+      ? metric.value
+      : 0;
+
+    weekMap.set(metric.week, {
+      week: metric.week,
+      value: uniqueSent,
+      uniqueEmails: uniqueSent,
+      change: metric.change,
+      previousWeek: metric.previousWeek,
+    });
+  });
+
+  interactionMetrics.forEach((metric) => {
+    if (!metric || typeof metric.week !== 'string') return;
+
+    const existing = weekMap.get(metric.week) || {
+      week: metric.week,
+      value: 0,
+    };
+
+    const uniqueSent = typeof existing.uniqueEmails === 'number' ? existing.uniqueEmails : 0;
+    const uniqueOpened = typeof metric.uniqueEmailsOpened === 'number' ? metric.uniqueEmailsOpened : undefined;
+    const uniqueClicked = typeof metric.uniqueEmailsClicked === 'number' ? metric.uniqueEmailsClicked : undefined;
+
+    weekMap.set(metric.week, {
+      ...existing,
+      value: uniqueSent,
+      uniqueEmails: uniqueSent,
+      uniqueEmailsOpened: uniqueOpened,
+      uniqueEmailsClicked: uniqueClicked,
+      links: metric.links,
+      clickLinksByEmail: metric.clickLinksByEmail,
+      leadsOpenedMultiple: metric.leadsOpenedMultiple,
+    });
+  });
+
+  const combined = Array.from(weekMap.values()).map((metric) => ({
+    ...metric,
+    value: typeof metric.uniqueEmails === 'number' ? metric.uniqueEmails : 0,
+  }));
+
+  combined.sort((a, b) => sortWeeksChronologically(a.week, b.week));
+
+  return combined;
+}
+
+function trimMetricsBeforeFirstSend(metrics: Metric[]): Metric[] {
+  const firstIndex = metrics.findIndex((metric) => (metric.uniqueEmails ?? 0) > 0);
+  if (firstIndex === -1) {
+    return [];
   }
 
-  const valueNumber = getMetricNumericValue(lastWeek);
-  if (valueNumber === null) {
-    return { card: null, context };
-  }
+  return metrics.map((metric, index) => {
+    if (index < firstIndex) {
+      return {
+        ...metric,
+        value: 0,
+        uniqueEmails: undefined,
+        uniqueEmailsOpened: undefined,
+        uniqueEmailsClicked: undefined,
+      };
+    }
+    return metric;
+  });
+}
 
-  const previousValueNumber = previous ? getMetricNumericValue(previous) : null;
-  const change =
-    typeof lastWeek.change === 'number' && Number.isFinite(lastWeek.change)
-      ? lastWeek.change
-      : null;
+function recalculateMetricChanges(metrics: Metric[]): Metric[] {
+  return metrics.map((metric, index) => {
+    const currentValue = typeof metric.uniqueEmails === 'number' ? metric.uniqueEmails : 0;
 
-  const card: SummaryCard = {
-    key,
-    title,
-    weekLabel: typeof lastWeek.week === 'string' ? formatWeekRange(lastWeek.week) : undefined,
-    valueLabel: formatSummaryValue(valueNumber, options),
-    change,
-    previousLabel:
-      previousValueNumber !== null ? formatSummaryValue(previousValueNumber, options) : undefined,
-    secondaryLabel: options.secondary ? options.secondary(lastWeek, previous) : undefined,
-    note: options.note ? options.note(lastWeek, previous) : undefined,
-  };
+    if (index === 0) {
+      return {
+        ...metric,
+        previousWeek: undefined,
+        change: 0,
+        value: currentValue,
+      };
+    }
 
-  return { card, context };
+    const prevMetric = metrics[index - 1];
+    const prevValue = typeof prevMetric.uniqueEmails === 'number' ? prevMetric.uniqueEmails : 0;
+
+    return {
+      ...metric,
+      previousWeek: prevValue,
+      change: prevValue > 0 ? ((currentValue - prevValue) / prevValue) * 100 : 0,
+      value: currentValue,
+    };
+  });
 }
 
 export default function Dashboard() {
@@ -212,6 +287,7 @@ export default function Dashboard() {
   const [data, setData] = useState<FunnelData | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [activeMarketingTab, setActiveMarketingTab] = useState<MarketingTabId>('emailOutreach');
+  const [claudeReport, setClaudeReport] = useState<ClaudeReport | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -254,43 +330,43 @@ export default function Dashboard() {
   const analysisResultEmailInteractionMetrics = calculateAnalysisResultEmailInteractionMetrics(
     data?.emailInteractions ?? []
   );
-  const dmMetrics = calculateDMMetrics(linkedinDMLogData);
-  const dmLeadRepliedMetrics = calculateDMLeadRepliedMetrics(linkedinDMLogData);
-  const dmFollowupMetrics = calculateDMFollowupMetrics(linkedinDMLogData);
-
+          const dmMetrics = calculateDMMetrics(linkedinDMLogData);
+          const dmLeadRepliedMetrics = calculateDMLeadRepliedMetrics(linkedinDMLogData);
+          const dmFollowupMetrics = calculateDMFollowupMetrics(linkedinDMLogData);
+          
   const dmDetails = useMemo<DMDetailMetrics[]>(() => {
     let details: DMDetailMetrics[] = [];
 
-    try {
-      if (Array.isArray(linkedinDMLogData) && linkedinDMLogData.length > 0) {
-        const result = calculateDMDetails(linkedinDMLogData);
-        if (Array.isArray(result)) {
+  try {
+    if (Array.isArray(linkedinDMLogData) && linkedinDMLogData.length > 0) {
+      const result = calculateDMDetails(linkedinDMLogData);
+      if (Array.isArray(result)) {
           details = result;
-        } else {
-          console.warn('calculateDMDetails returned non-array:', result);
+      } else {
+        console.warn('calculateDMDetails returned non-array:', result);
           details = [];
-        }
       }
-    } catch (error) {
-      console.error('Error calculating DM details:', error);
-      details = [];
     }
-
+  } catch (error) {
+    console.error('Error calculating DM details:', error);
+      details = [];
+  }
+  
     if (!Array.isArray(details)) {
       console.error('dmDetails is not an array, resetting:', details);
       details = [];
-    }
-
+  }
+  
     return details.filter((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) {
-        return false;
-      }
-      if ('error' in item) {
-        console.warn('Found error object in dmDetails, removing:', item);
-        return false;
-      }
-      return true;
-    });
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return false;
+    }
+    if ('error' in item) {
+      console.warn('Found error object in dmDetails, removing:', item);
+      return false;
+    }
+    return true;
+  });
   }, [linkedinDMLogData]);
 
   const leadMagnetLeadsMetrics = calculateLeadMagnetLeads(data?.leadList ?? []);
@@ -304,250 +380,309 @@ export default function Dashboard() {
     data?.bookACall ?? []
   );
 
-  const {
-    clicks: salesClicks,
-    clickToLanded: salesClickToLanded,
-  } = salesFunnelMetrics;
+  const outreachCombinedMetrics = useMemo(
+    () => {
+      const combined = combineEmailMetrics(mktOutreachMetrics, outreachEmailInteractionMetrics);
+      const trimmed = trimMetricsBeforeFirstSend(combined);
+      return recalculateMetricChanges(trimmed);
+    },
+    [mktOutreachMetrics, outreachEmailInteractionMetrics]
+  );
+
+  const nurtureCombinedMetrics = useMemo(
+    () => {
+      const combined = combineEmailMetrics(nurtureEmailMetrics, nurtureEmailInteractionMetrics);
+      return recalculateMetricChanges(combined);
+    },
+    [nurtureEmailMetrics, nurtureEmailInteractionMetrics]
+  );
 
   const marketingSummaryCards = useMemo<SummaryCard[]>(() => {
     const cards: SummaryCard[] = [];
 
-    const formatWeekFromMetric = (metric?: Metric) =>
-      metric && typeof metric.week === 'string' ? formatWeekRange(metric.week) : undefined;
+    const outreachCombinedContext = getRecentMetricsForSummary(outreachCombinedMetrics);
+    const outreachMetric = outreachCombinedContext.lastWeek;
+    const outreachPrevious = outreachCombinedContext.previous;
 
-    const outreachSentContext = getRecentMetricsForSummary(mktOutreachMetrics);
-    const outreachSent = getMetricNumericValue(outreachSentContext.lastWeek);
-    const outreachPrevSent = getMetricNumericValue(outreachSentContext.previous);
-    const outreachOpensContext = getRecentMetricsForSummary(outreachEmailInteractionMetrics);
-    const outreachOpens = getMetricNumericValue(outreachOpensContext.lastWeek);
-    const outreachPrevOpens = getMetricNumericValue(outreachOpensContext.previous);
-    const outreachClicks = typeof outreachOpensContext.lastWeek?.clicked === 'number'
-      ? outreachOpensContext.lastWeek!.clicked
-      : null;
-    const outreachPrevClicks = typeof outreachOpensContext.previous?.clicked === 'number'
-      ? outreachOpensContext.previous!.clicked
-      : null;
+    if (outreachMetric) {
+      const sent = typeof outreachMetric.uniqueEmails === 'number' ? outreachMetric.uniqueEmails : 0;
+      const opened = typeof outreachMetric.uniqueEmailsOpened === 'number' ? outreachMetric.uniqueEmailsOpened : 0;
+      const clicked = typeof outreachMetric.uniqueEmailsClicked === 'number' ? outreachMetric.uniqueEmailsClicked : 0;
+      const prevSent = outreachPrevious && typeof outreachPrevious.uniqueEmails === 'number' ? outreachPrevious.uniqueEmails : 0;
+      const prevOpened = outreachPrevious && typeof outreachPrevious.uniqueEmailsOpened === 'number' ? outreachPrevious.uniqueEmailsOpened : 0;
+      const prevClicked = outreachPrevious && typeof outreachPrevious.uniqueEmailsClicked === 'number' ? outreachPrevious.uniqueEmailsClicked : 0;
+      const changeSent = prevSent > 0 ? ((sent - prevSent) / prevSent) * 100 : null;
+      const changeOpened = prevOpened > 0 ? ((opened - prevOpened) / prevOpened) * 100 : null;
+      const changeClicked = prevClicked > 0 ? ((clicked - prevClicked) / prevClicked) * 100 : null;
 
-    if (outreachSent !== null && outreachSent > 0 && outreachOpens !== null) {
-      const rate = (outreachOpens / outreachSent) * 100;
-      const prevRate =
-        outreachPrevSent !== null && outreachPrevSent > 0 && outreachPrevOpens !== null
-          ? (outreachPrevOpens / outreachPrevSent) * 100
-          : null;
-      const change =
-        prevRate !== null && prevRate !== 0 ? ((rate - prevRate) / prevRate) * 100 : null;
       cards.push({
-        key: 'outreach-open-rate',
-        title: 'Outreach Email Open Rate',
-        valueLabel: formatSummaryValue(rate, { decimals: 1, suffix: '%' }),
-        change,
-        previousLabel:
-          prevRate !== null ? formatSummaryValue(prevRate, { decimals: 1, suffix: '%' }) : undefined,
-        note: `Opens: ${Math.round(outreachOpens).toLocaleString()} • Sent: ${Math.round(outreachSent).toLocaleString()}`,
-        weekLabel: formatWeekFromMetric(outreachSentContext.lastWeek),
+        key: 'outreach-unique-sent',
+        title: 'Outreach Unique Leads Reached',
+        valueLabel: sent.toLocaleString(),
+        change: changeSent ?? undefined,
+        weekLabel: formatWeekFromMetric(outreachMetric),
       });
-
-      const outreachRecipients = typeof outreachSentContext.lastWeek?.uniqueEmails === 'number'
-        ? outreachSentContext.lastWeek!.uniqueEmails
-        : null;
-      const outreachOpenLeads = typeof outreachOpensContext.lastWeek?.uniqueEmailsOpened === 'number'
-        ? outreachOpensContext.lastWeek!.uniqueEmailsOpened
-        : null;
-      if (outreachRecipients !== null && outreachOpenLeads !== null) {
-        const notOpen = Math.max(outreachRecipients - outreachOpenLeads, 0);
-        const prevRecipients = typeof outreachSentContext.previous?.uniqueEmails === 'number'
-          ? outreachSentContext.previous!.uniqueEmails
-          : null;
-        const prevOpenLeads = typeof outreachOpensContext.previous?.uniqueEmailsOpened === 'number'
-          ? outreachOpensContext.previous!.uniqueEmailsOpened
-          : null;
-        const prevNotOpen =
-          prevRecipients !== null && prevOpenLeads !== null
-            ? Math.max(prevRecipients - prevOpenLeads, 0)
-            : null;
-        const changeNotOpen =
-          prevNotOpen !== null && prevNotOpen !== 0 ? ((notOpen - prevNotOpen) / prevNotOpen) * 100 : null;
-        cards.push({
-          key: 'outreach-no-open',
-          title: 'Leads Not Opening Outreach Email',
-          valueLabel: formatSummaryValue(notOpen),
-          change: changeNotOpen,
-          previousLabel: prevNotOpen !== null ? formatSummaryValue(prevNotOpen) : undefined,
-          note: `Recipients: ${outreachRecipients.toLocaleString()} • Opened: ${outreachOpenLeads.toLocaleString()}`,
-          weekLabel: formatWeekFromMetric(outreachSentContext.lastWeek),
-        });
-      }
-    }
-
-    if (outreachOpens !== null && outreachOpens > 0 && outreachClicks !== null) {
-      const rate = (outreachClicks / outreachOpens) * 100;
-      const prevRate =
-        outreachPrevOpens !== null && outreachPrevOpens > 0 && outreachPrevClicks !== null
-          ? (outreachPrevClicks / outreachPrevOpens) * 100
-          : null;
-      const change =
-        prevRate !== null && prevRate !== 0 ? ((rate - prevRate) / prevRate) * 100 : null;
       cards.push({
-        key: 'outreach-click-rate',
-        title: 'Outreach Email Click Rate',
-        valueLabel: formatSummaryValue(rate, { decimals: 1, suffix: '%' }),
-        change,
-        previousLabel:
-          prevRate !== null ? formatSummaryValue(prevRate, { decimals: 1, suffix: '%' }) : undefined,
-        note: `Clicks: ${outreachClicks.toLocaleString()} • Opens: ${Math.round(outreachOpens).toLocaleString()}`,
-        weekLabel: formatWeekFromMetric(outreachOpensContext.lastWeek),
+        key: 'outreach-unique-opened',
+        title: 'Outreach Unique Leads Opened',
+        valueLabel: opened.toLocaleString(),
+        change: changeOpened ?? undefined,
+        weekLabel: formatWeekFromMetric(outreachMetric),
       });
-
-      const outreachMultiOpens = typeof outreachOpensContext.lastWeek?.leadsOpenedMultiple === 'number'
-        ? outreachOpensContext.lastWeek!.leadsOpenedMultiple
-        : null;
-      const outreachPrevMultiOpens = typeof outreachOpensContext.previous?.leadsOpenedMultiple === 'number'
-        ? outreachOpensContext.previous!.leadsOpenedMultiple
-        : null;
-      if (outreachMultiOpens !== null) {
-        const changeMulti =
-          outreachPrevMultiOpens !== null && outreachPrevMultiOpens !== 0
-            ? ((outreachMultiOpens - outreachPrevMultiOpens) / outreachPrevMultiOpens) * 100
-            : null;
-        cards.push({
-          key: 'outreach-repeat-openers',
-          title: 'Leads Opening Outreach Email >1x',
-          valueLabel: formatSummaryValue(outreachMultiOpens),
-          change: changeMulti,
-          previousLabel:
-            outreachPrevMultiOpens !== null ? formatSummaryValue(outreachPrevMultiOpens) : undefined,
-          note: 'Count of leads with multiple outreach opens last week',
-          weekLabel: formatWeekFromMetric(outreachOpensContext.lastWeek),
-        });
-      }
-    }
-
-    const nurtureSentContext = getRecentMetricsForSummary(nurtureEmailMetrics);
-    const nurtureSent = getMetricNumericValue(nurtureSentContext.lastWeek);
-    const nurturePrevSent = getMetricNumericValue(nurtureSentContext.previous);
-    const nurtureOpensContext = getRecentMetricsForSummary(nurtureEmailInteractionMetrics);
-    const nurtureOpens = getMetricNumericValue(nurtureOpensContext.lastWeek);
-    const nurturePrevOpens = getMetricNumericValue(nurtureOpensContext.previous);
-    const nurtureClicks = typeof nurtureOpensContext.lastWeek?.clicked === 'number'
-      ? nurtureOpensContext.lastWeek!.clicked
-      : null;
-    const nurturePrevClicks = typeof nurtureOpensContext.previous?.clicked === 'number'
-      ? nurtureOpensContext.previous!.clicked
-      : null;
-
-    if (nurtureSent !== null && nurtureSent > 0 && nurtureOpens !== null) {
-      const rate = (nurtureOpens / nurtureSent) * 100;
-      const prevRate =
-        nurturePrevSent !== null && nurturePrevSent > 0 && nurturePrevOpens !== null
-          ? (nurturePrevOpens / nurturePrevSent) * 100
-          : null;
-      const change =
-        prevRate !== null && prevRate !== 0 ? ((rate - prevRate) / prevRate) * 100 : null;
       cards.push({
-        key: 'nurture-open-rate',
-        title: 'Nurture Email Open Rate',
-        valueLabel: formatSummaryValue(rate, { decimals: 1, suffix: '%' }),
-        change,
-        previousLabel:
-          prevRate !== null ? formatSummaryValue(prevRate, { decimals: 1, suffix: '%' }) : undefined,
-        note: `Opens: ${Math.round(nurtureOpens).toLocaleString()} • Sent: ${Math.round(nurtureSent).toLocaleString()}`,
-        weekLabel: formatWeekFromMetric(nurtureSentContext.lastWeek),
+        key: 'outreach-unique-clicked',
+        title: 'Outreach Unique Leads Clicked',
+        valueLabel: clicked.toLocaleString(),
+        change: changeClicked ?? undefined,
+        weekLabel: formatWeekFromMetric(outreachMetric),
       });
     }
 
-    if (nurtureOpens !== null && nurtureOpens > 0 && nurtureClicks !== null) {
-      const rate = (nurtureClicks / nurtureOpens) * 100;
-      const prevRate =
-        nurturePrevOpens !== null && nurturePrevOpens > 0 && nurturePrevClicks !== null
-          ? (nurturePrevClicks / nurturePrevOpens) * 100
-          : null;
-      const change =
-        prevRate !== null && prevRate !== 0 ? ((rate - prevRate) / prevRate) * 100 : null;
+    const nurtureCombinedContext = getRecentMetricsForSummary(nurtureCombinedMetrics);
+    const nurtureMetric = nurtureCombinedContext.lastWeek;
+    const nurturePrevious = nurtureCombinedContext.previous;
+
+    if (nurtureMetric) {
+      const sent = typeof nurtureMetric.uniqueEmails === 'number' ? nurtureMetric.uniqueEmails : 0;
+      const opened = typeof nurtureMetric.uniqueEmailsOpened === 'number' ? nurtureMetric.uniqueEmailsOpened : 0;
+      const clicked = typeof nurtureMetric.uniqueEmailsClicked === 'number' ? nurtureMetric.uniqueEmailsClicked : 0;
+      const prevSent = nurturePrevious && typeof nurturePrevious.uniqueEmails === 'number' ? nurturePrevious.uniqueEmails : 0;
+      const prevOpened = nurturePrevious && typeof nurturePrevious.uniqueEmailsOpened === 'number' ? nurturePrevious.uniqueEmailsOpened : 0;
+      const prevClicked = nurturePrevious && typeof nurturePrevious.uniqueEmailsClicked === 'number' ? nurturePrevious.uniqueEmailsClicked : 0;
+      const changeSent = prevSent > 0 ? ((sent - prevSent) / prevSent) * 100 : null;
+      const changeOpened = prevOpened > 0 ? ((opened - prevOpened) / prevOpened) * 100 : null;
+      const changeClicked = prevClicked > 0 ? ((clicked - prevClicked) / prevClicked) * 100 : null;
+
       cards.push({
-        key: 'nurture-click-rate',
-        title: 'Nurture Email Click Rate',
-        valueLabel: formatSummaryValue(rate, { decimals: 1, suffix: '%' }),
-        change,
-        previousLabel:
-          prevRate !== null ? formatSummaryValue(prevRate, { decimals: 1, suffix: '%' }) : undefined,
-        note: `Clicks: ${nurtureClicks.toLocaleString()} • Opens: ${Math.round(nurtureOpens).toLocaleString()}`,
-        weekLabel: formatWeekFromMetric(nurtureOpensContext.lastWeek),
+        key: 'nurture-unique-sent',
+        title: 'Nurture Unique Leads Reached',
+        valueLabel: sent.toLocaleString(),
+        change: changeSent ?? undefined,
+        weekLabel: formatWeekFromMetric(nurtureMetric),
+      });
+      cards.push({
+        key: 'nurture-unique-opened',
+        title: 'Nurture Unique Leads Opened',
+        valueLabel: opened.toLocaleString(),
+        change: changeOpened ?? undefined,
+        weekLabel: formatWeekFromMetric(nurtureMetric),
+      });
+      cards.push({
+        key: 'nurture-unique-clicked',
+        title: 'Nurture Unique Leads Clicked',
+        valueLabel: clicked.toLocaleString(),
+        change: changeClicked ?? undefined,
+        weekLabel: formatWeekFromMetric(nurtureMetric),
+      });
+    }
+
+    const leadMagnetSubmissionContext = getRecentMetricsForSummary(leadMagnetMetrics.submissions);
+    const leadMagnetSubmissionMetric = leadMagnetSubmissionContext.lastWeek;
+    const leadMagnetSubmissionPrev = leadMagnetSubmissionContext.previous;
+    if (leadMagnetSubmissionMetric) {
+      const submissions = typeof leadMagnetSubmissionMetric.uniqueLeads === 'number' ? leadMagnetSubmissionMetric.uniqueLeads : 0;
+      const prevSubmissions = leadMagnetSubmissionPrev && typeof leadMagnetSubmissionPrev.uniqueLeads === 'number' ? leadMagnetSubmissionPrev.uniqueLeads : 0;
+      const changeSubmissions = prevSubmissions > 0 ? ((submissions - prevSubmissions) / prevSubmissions) * 100 : null;
+      cards.push({
+        key: 'lead-magnet-unique-submissions',
+        title: 'Lead Magnet Unique Lead Submissions',
+        valueLabel: submissions.toLocaleString(),
+        change: changeSubmissions ?? undefined,
+        weekLabel: formatWeekFromMetric(leadMagnetSubmissionMetric),
+      });
+    }
+
+    const leadMagnetVisitsContext = getRecentMetricsForSummary(leadMagnetMetrics.uniqueVisits);
+    const leadMagnetVisitsMetric = leadMagnetVisitsContext.lastWeek;
+    const leadMagnetVisitsPrev = leadMagnetVisitsContext.previous;
+    if (leadMagnetVisitsMetric) {
+      const visits = typeof leadMagnetVisitsMetric.value === 'number' ? leadMagnetVisitsMetric.value : 0;
+      const prevVisits = leadMagnetVisitsPrev && typeof leadMagnetVisitsPrev.value === 'number' ? leadMagnetVisitsPrev.value : 0;
+      const changeVisits = prevVisits > 0 ? ((visits - prevVisits) / prevVisits) * 100 : null;
+      cards.push({
+        key: 'lead-magnet-unique-visits',
+        title: 'Lead Magnet Unique Visitors',
+        valueLabel: visits.toLocaleString(),
+        change: changeVisits ?? undefined,
+        weekLabel: formatWeekFromMetric(leadMagnetVisitsMetric),
+      });
+    }
+
+    const leadMagnetDurationContext = getRecentMetricsForSummary(leadMagnetMetrics.avgDuration);
+    const leadMagnetDurationMetric = leadMagnetDurationContext.lastWeek;
+    const leadMagnetDurationPrev = leadMagnetDurationContext.previous;
+    if (leadMagnetDurationMetric) {
+      const highInterest = typeof leadMagnetDurationMetric.highInterestCount === 'number' ? leadMagnetDurationMetric.highInterestCount : 0;
+      const bounce = typeof leadMagnetDurationMetric.bounceCount === 'number' ? leadMagnetDurationMetric.bounceCount : 0;
+      const prevHighInterest = leadMagnetDurationPrev && typeof leadMagnetDurationPrev.highInterestCount === 'number' ? leadMagnetDurationPrev.highInterestCount : 0;
+      const prevBounce = leadMagnetDurationPrev && typeof leadMagnetDurationPrev.bounceCount === 'number' ? leadMagnetDurationPrev.bounceCount : 0;
+      const changeHighInterest = prevHighInterest > 0 ? ((highInterest - prevHighInterest) / prevHighInterest) * 100 : null;
+      const changeBounce = prevBounce > 0 ? ((bounce - prevBounce) / prevBounce) * 100 : null;
+      cards.push({
+        key: 'lead-magnet-high-interest',
+        title: 'Lead Magnet Leads > 20s',
+        valueLabel: highInterest.toLocaleString(),
+        change: changeHighInterest ?? undefined,
+        weekLabel: formatWeekFromMetric(leadMagnetDurationMetric),
+      });
+      cards.push({
+        key: 'lead-magnet-bounce',
+        title: 'Lead Magnet Leads < 10s',
+        valueLabel: bounce.toLocaleString(),
+        change: changeBounce ?? undefined,
+        weekLabel: formatWeekFromMetric(leadMagnetDurationMetric),
       });
     }
 
     return cards;
-  }, [
-    mktOutreachMetrics,
-    nurtureEmailInteractionMetrics,
-    nurtureEmailMetrics,
-    outreachEmailInteractionMetrics,
-  ]);
+  }, [outreachCombinedMetrics, nurtureCombinedMetrics, leadMagnetMetrics.submissions, leadMagnetMetrics.uniqueVisits, leadMagnetMetrics.avgDuration]);
 
   const salesSummaryCards = useMemo<SummaryCard[]>(() => {
     const cards: SummaryCard[] = [];
 
-    const bookCallCtrCard = buildSummaryCard('book-call-ctr', 'Book a Call CTR', salesClickToLanded, {
-      suffix: '%',
-      decimals: 1,
-      note: (metric) => {
-        const clicks = typeof metric?.clicked === 'number' ? metric.clicked : undefined;
-        const landed = getMetricNumericValue(metric);
-        const parts: string[] = [];
-        if (clicks !== undefined) {
-          parts.push(`Clicks: ${clicks.toLocaleString()}`);
-        }
-        if (landed !== null) {
-          parts.push(`Sessions: ${Math.round(landed).toLocaleString()}`);
-        }
-        return parts.join(' • ') || undefined;
-      },
-    });
-    if (bookCallCtrCard.card) {
-      cards.push(bookCallCtrCard.card);
+    const ffDurationContext = getRecentMetricsForSummary(salesFunnelMetrics.avgDuration);
+    const ffDurationMetric = ffDurationContext.lastWeek;
+    const ffDurationPrev = ffDurationContext.previous;
+
+    if (ffDurationMetric) {
+      const highInterest = typeof ffDurationMetric.highInterestCount === 'number' ? ffDurationMetric.highInterestCount : 0;
+      const bounce = typeof ffDurationMetric.bounceCount === 'number' ? ffDurationMetric.bounceCount : 0;
+      const prevHighInterest = ffDurationPrev && typeof ffDurationPrev.highInterestCount === 'number' ? ffDurationPrev.highInterestCount : 0;
+      const prevBounce = ffDurationPrev && typeof ffDurationPrev.bounceCount === 'number' ? ffDurationPrev.bounceCount : 0;
+      const changeHighInterest = prevHighInterest > 0 ? ((highInterest - prevHighInterest) / prevHighInterest) * 100 : null;
+      const changeBounce = prevBounce > 0 ? ((bounce - prevBounce) / prevBounce) * 100 : null;
+
+      cards.push({
+        key: 'ff-high-interest',
+        title: 'FF Leads > 20s',
+        valueLabel: highInterest.toLocaleString(),
+        change: changeHighInterest ?? undefined,
+        weekLabel: formatWeekFromMetric(ffDurationMetric),
+      });
+      cards.push({
+        key: 'ff-bounce',
+        title: 'FF Leads < 10s',
+        valueLabel: bounce.toLocaleString(),
+        change: changeBounce ?? undefined,
+        weekLabel: formatWeekFromMetric(ffDurationMetric),
+      });
     }
 
-    const clicksContext = getRecentMetricsForSummary(salesClicks);
-    const leadsContext = getRecentMetricsForSummary(bookACallLeadsMetrics);
-    const clicksValue = getMetricNumericValue(clicksContext.lastWeek);
-    const leadsValue = getMetricNumericValue(leadsContext.lastWeek);
-    const prevClicksValue = getMetricNumericValue(clicksContext.previous);
-    const prevLeadsValue = getMetricNumericValue(leadsContext.previous);
-
-    if (clicksValue !== null && clicksValue > 0 && leadsValue !== null) {
-      const rate = (leadsValue / clicksValue) * 100;
-      const prevRate =
-        prevClicksValue !== null && prevClicksValue > 0 && prevLeadsValue !== null
-          ? (prevLeadsValue / prevClicksValue) * 100
-          : null;
-      const change =
-        prevRate !== null && prevRate !== 0 ? ((rate - prevRate) / prevRate) * 100 : null;
-      const noteParts: string[] = [
-        `Leads: ${Math.round(leadsValue).toLocaleString()}`,
-        `Clicks: ${Math.round(clicksValue).toLocaleString()}`,
-      ];
+    const ffUniqueVisitsContext = getRecentMetricsForSummary(salesFunnelMetrics.uniqueVisits);
+    const ffUniqueVisitsMetric = ffUniqueVisitsContext.lastWeek;
+    const ffUniqueVisitsPrev = ffUniqueVisitsContext.previous;
+    if (ffUniqueVisitsMetric) {
+      const uniqueVisits = typeof ffUniqueVisitsMetric.value === 'number' ? ffUniqueVisitsMetric.value : 0;
+      const prevUniqueVisits = ffUniqueVisitsPrev && typeof ffUniqueVisitsPrev.value === 'number' ? ffUniqueVisitsPrev.value : 0;
+      const changeUniqueVisits = prevUniqueVisits > 0 ? ((uniqueVisits - prevUniqueVisits) / prevUniqueVisits) * 100 : null;
       cards.push({
-        key: 'book-call-click-to-lead',
-        title: 'Book a Call Click-to-Lead Rate',
-        valueLabel: formatSummaryValue(rate, { decimals: 1, suffix: '%' }),
-        change,
-        previousLabel:
-          prevRate !== null ? formatSummaryValue(prevRate, { decimals: 1, suffix: '%' }) : undefined,
-        note: noteParts.join(' • '),
+        key: 'ff-unique-visits',
+        title: 'FF Unique Visitors',
+        valueLabel: uniqueVisits.toLocaleString(),
+        change: changeUniqueVisits ?? undefined,
+        weekLabel: formatWeekFromMetric(ffUniqueVisitsMetric),
+      });
+    }
+
+    const bookClickContext = getRecentMetricsForSummary(salesFunnelMetrics.clicks);
+    const bookClickMetric = bookClickContext.lastWeek;
+    const bookClickPrev = bookClickContext.previous;
+    if (bookClickMetric) {
+      const uniqueClickLeads = Array.isArray(bookClickMetric.clickLeadEmails) ? bookClickMetric.clickLeadEmails.length : 0;
+      const prevUniqueClickLeads = bookClickPrev && Array.isArray(bookClickPrev.clickLeadEmails) ? bookClickPrev.clickLeadEmails.length : 0;
+      const changeUniqueClickLeads = prevUniqueClickLeads > 0 ? ((uniqueClickLeads - prevUniqueClickLeads) / prevUniqueClickLeads) * 100 : null;
+      cards.push({
+        key: 'book-call-unique-clicks',
+        title: 'Leads Clicking Book a Call',
+        valueLabel: uniqueClickLeads.toLocaleString(),
+        change: changeUniqueClickLeads ?? undefined,
+        weekLabel: formatWeekFromMetric(bookClickMetric),
       });
     }
 
     return cards;
   }, [
-    bookACallLeadsMetrics,
-    salesClickToLanded,
-    salesClicks,
+    salesFunnelMetrics.avgDuration,
+    salesFunnelMetrics.uniqueVisits,
+    salesFunnelMetrics.clicks,
   ]);
+
+  const lastCompletedWeekInfo = useMemo(() => {
+    const allSeries = [
+      ...outreachCombinedMetrics,
+      ...nurtureCombinedMetrics,
+      ...(leadMagnetMetrics.submissions ?? []),
+      ...(salesFunnelMetrics.uniqueVisits ?? []),
+      ...(dmMetrics ?? []),
+    ];
+    const { lastWeek } = getRecentMetricsForSummary(allSeries);
+    if (lastWeek && typeof lastWeek.week === 'string') {
+      return {
+        label: formatWeekRange(lastWeek.week),
+        weekStart: lastWeek.week,
+        weekDate: parseWeekStart(lastWeek.week),
+      };
+    }
+    return { label: undefined, weekStart: undefined, weekDate: undefined };
+  }, [
+    outreachCombinedMetrics,
+    nurtureCombinedMetrics,
+    leadMagnetMetrics.submissions,
+    salesFunnelMetrics.uniqueVisits,
+    dmMetrics,
+  ]);
+
+  useEffect(() => {
+    async function fetchClaudeReport() {
+      try {
+        const res = await fetch('/api/claude-report');
+        if (!res.ok) {
+          throw new Error('Failed to fetch Claude report');
+        }
+        const json = (await res.json()) as ClaudeReport;
+        setClaudeReport(json);
+      } catch (error) {
+        console.warn('Unable to load Claude report:', error);
+        setClaudeReport(null);
+      }
+    }
+
+    fetchClaudeReport();
+  }, []);
+
+  useEffect(() => {
+    async function ensureFreshReport() {
+      if (!lastCompletedWeekInfo.label || !lastCompletedWeekInfo.weekDate) {
+        return;
+      }
+
+      if (claudeReport?.weekRange === lastCompletedWeekInfo.label) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/claude-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ regenerate: true }),
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to regenerate Claude report');
+        }
+
+        const json = (await res.json()) as ClaudeReport;
+        setClaudeReport(json);
+      } catch (error) {
+        console.warn('Unable to automatically regenerate Claude report:', error);
+      }
+    }
+
+    ensureFreshReport();
+  }, [claudeReport?.weekRange, lastCompletedWeekInfo.label, lastCompletedWeekInfo.weekDate]);
 
   const linkedinSummaryCards = useMemo<SummaryCard[]>(() => {
     const cards: SummaryCard[] = [];
-
-    const formatWeekFromMetric = (metric?: Metric) =>
-      metric && typeof metric.week === 'string' ? formatWeekRange(metric.week) : undefined;
 
     const repliesContext = getRecentMetricsForSummary(dmLeadRepliedMetrics);
     const replies = getMetricNumericValue(repliesContext.lastWeek);
@@ -653,7 +788,7 @@ export default function Dashboard() {
             : '→'
           : null;
 
-      return (
+  return (
         <div
           key={card.key}
           className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 flex flex-col gap-3"
@@ -669,13 +804,13 @@ export default function Dashboard() {
           {typeof card.change === 'number' && (
             <p className={`text-sm font-semibold ${changeColor}`}>
               {changeIcon} {Math.abs(card.change).toFixed(1)}% WoW
-            </p>
-          )}
+              </p>
+            )}
           {card.previousLabel && (
             <p className="text-xs text-gray-500">Previous week: {card.previousLabel}</p>
           )}
           {card.note && <p className="text-xs text-gray-500 leading-relaxed">{card.note}</p>}
-        </div>
+          </div>
       );
     },
     []
@@ -686,91 +821,84 @@ export default function Dashboard() {
       emailOutreach: (
         <div className="space-y-8">
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">Outreach</h3>
-            <InfoBox title="About Outreach">
-              <p className="mb-2">
-                This section tracks MKT Outreach email campaigns and their engagement:
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>MKT Outreach - Sent:</strong> Total number of outbound marketing emails sent (each record = 1 email). Also shows unique leads who received emails. One lead can receive multiple emails per week.</li>
-                <li><strong>Outreach Emails - Opens &amp; Clicks:</strong> Engagement metrics for MKT Outreach emails filtered by <code className="bg-gray-100 px-1 rounded">mailgun_tags</code> containing &quot;outreach&quot; or &quot;mkt outreach&quot;</li>
-                <li><strong>Opens:</strong> Total number of email open events (main metric shown)</li>
-                <li><strong>Clicks:</strong> Total number of email click events (shown in card)</li>
-                <li><strong>Unique Leads Opened:</strong> Number of unique email addresses that opened emails (shown in card and chart tooltip)</li>
-                <li><strong>Unique Leads Clicked:</strong> Number of unique email addresses that clicked links (shown in card and chart tooltip)</li>
-                <li><strong>% Clicked over Opened:</strong> Click-through rate from opens to clicks (shown in chart tooltip)</li>
-                <li>Charts display the latest 12 weeks of data for better trend visualization</li>
-                <li>Data is tracked week-over-week to monitor campaign performance and engagement rates</li>
-              </ul>
-            </InfoBox>
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">Outreach</h3>
+            <details className="border border-gray-200 rounded-lg">
+              <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                About Outreach
+              </summary>
+              <div className="px-4 pb-4">
+                    <InfoBox title="About Outreach">
+                      <p className="mb-2">
+                    This section tracks unique outreach engagement metrics:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                    <li><strong>Unique Leads Sent:</strong> Number of distinct leads who received an outreach email in the week.</li>
+                    <li><strong>Unique Leads Opened:</strong> Distinct leads who opened at least one outreach email that week.</li>
+                    <li><strong>Unique Leads Clicked:</strong> Distinct leads who clicked any outreach link that week. Clicked links per lead are shown in the card.</li>
+                    <li><strong>Trend Chart:</strong> Visualizes unique leads sent, opened, and clicked per week.</li>
+                      </ul>
+                    </InfoBox>
+                    </div>
+            </details>
 
             <div className="space-y-6">
-              <MetricSection
-                title="MKT Outreach - Sent"
-                metrics={mktOutreachMetrics}
-                showPercentage={false}
-                unit="emails"
-                showChart={true}
-                chartType="line"
-              />
-              <MetricSection
-                title="Outreach Emails - Opens &amp; Clicks"
-                metrics={outreachEmailInteractionMetrics}
-                showPercentage={false}
-                unit="opens"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
-          </div>
-        </div>
+                      <MetricSection
+                title="Outreach Emails - Unique Leads"
+                metrics={outreachCombinedMetrics}
+                        showPercentage={false}
+                unit="leads"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                  </div>
+                  </div>
       ),
       emailNurture: (
         <div className="space-y-8">
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">Nurture</h3>
-            <InfoBox title="About Nurture">
-              <p className="mb-2">
-                This section tracks Nurture email campaigns and their engagement:
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>Nurture Emails - Sent:</strong> Total number of follow-up emails sent to nurture existing leads (General Nurture, Win-back Sequence). Also shows unique leads who received emails. One lead can receive multiple emails per week.</li>
-                <li><strong>Nurture Emails - Opens &amp; Clicks:</strong> Engagement metrics for Nurture sequence emails filtered by <code className="bg-gray-100 px-1 rounded">mailgun_tags</code> containing &quot;nurture&quot;, &quot;win-back&quot;, or &quot;general nurture&quot;</li>
-                <li><strong>Opens:</strong> Total number of email open events (main metric shown)</li>
-                <li><strong>Clicks:</strong> Total number of email click events (shown in card)</li>
-                <li><strong>Unique Leads Opened:</strong> Number of unique email addresses that opened emails (shown in card and chart tooltip)</li>
-                <li><strong>Unique Leads Clicked:</strong> Number of unique email addresses that clicked links (shown in card and chart tooltip)</li>
-                <li><strong>% Clicked over Opened:</strong> Click-through rate from opens to clicks (shown in chart tooltip)</li>
-                <li>Charts display the latest 12 weeks of data for better trend visualization</li>
-                <li>Data is tracked week-over-week to monitor nurture campaign performance</li>
-              </ul>
-            </InfoBox>
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">Nurture</h3>
+            <details className="border border-gray-200 rounded-lg">
+              <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                About Nurture
+              </summary>
+              <div className="px-4 pb-4">
+                    <InfoBox title="About Nurture">
+                      <p className="mb-2">
+                    This section concentrates on unique nurture engagement metrics:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                    <li><strong>Unique Leads Sent:</strong> Distinct leads who received nurture emails during the week.</li>
+                    <li><strong>Unique Leads Opened:</strong> Distinct leads who opened nurture emails.</li>
+                    <li><strong>Unique Leads Clicked:</strong> Distinct leads who clicked nurture links (all links listed in the card).</li>
+                    <li><strong>Trend Chart:</strong> Shows unique leads sent, opened, and clicked week-over-week.</li>
+                      </ul>
+                    </InfoBox>
+                    </div>
+            </details>
 
             <div className="space-y-6">
-              <MetricSection
-                title="Nurture Emails - Sent"
-                metrics={nurtureEmailMetrics}
-                showPercentage={false}
-                unit="emails"
-                showChart={true}
-                chartType="line"
-              />
-              <MetricSection
-                title="Nurture Emails - Opens &amp; Clicks"
-                metrics={nurtureEmailInteractionMetrics}
-                showPercentage={false}
-                unit="opens"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
-          </div>
-        </div>
+                      <MetricSection
+                title="Nurture Emails - Unique Leads"
+                metrics={nurtureCombinedMetrics}
+                        showPercentage={false}
+                unit="leads"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                  </div>
+                    </div>
       ),
       newOrganicLeads: (
         <div className="space-y-8">
           <div>
             <h3 className="text-xl font-semibold mb-4 text-gray-800">New Organic Leads</h3>
+            <details className="border border-gray-200 rounded-lg">
+              <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                About New Organic Leads
+              </summary>
+              <div className="px-4 pb-4">
             <InfoBox title="About New Organic Leads">
               <p className="mb-2">
                 This section tracks leads that come to you organically (not from outbound campaigns):
@@ -783,6 +911,8 @@ export default function Dashboard() {
                 <li>Tracked week-over-week to monitor organic growth and brand awareness</li>
               </ul>
             </InfoBox>
+              </div>
+            </details>
 
             <div className="space-y-6">
               <MetricSection
@@ -807,73 +937,84 @@ export default function Dashboard() {
         <div className="space-y-8">
           <div>
             <h3 className="text-xl font-semibold mb-4 text-gray-800">Lead Magnet Performance</h3>
-            <InfoBox title="About Lead Magnet Performance">
-              <p className="mb-2">
-                This section tracks the performance of your lead magnet landing pages (deck analysis tools):
-              </p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>Landed:</strong> Total number of unique sessions on the lead magnet landing page (each <code className="bg-gray-100 px-1 rounded">SessionID</code> = 1 session)</li>
-                <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources. If medium doesn&apos;t contain &quot;rec&quot;, it&apos;s not counted as a unique lead visitor.</li>
-                <li><strong>Avg. Session Duration:</strong> Average time (in seconds) visitors spend on the page per session. Calculated as total duration ÷ number of sessions. Higher duration indicates better content engagement and lead quality.</li>
-                <li><strong>Deck Submission:</strong> Total number of pitch decks submitted for analysis. Also shows unique leads who submitted (one lead can submit multiple decks). This is the conversion metric from landing to submission.</li>
-                <li><strong>Analysis Result Email Interactions:</strong> Opens and clicks on lead magnet deck analysis report emails, filtered by <code className="bg-gray-100 px-1 rounded">mailgun_tags</code> containing &quot;analysis result&quot; or &quot;analysis&quot;. Shows total opens, clicks, and unique leads who opened/clicked.</li>
-                <li>Charts display the latest 12 weeks of data for better trend visualization</li>
-                <li>Track conversion rate from landed to submission to optimize the funnel</li>
-              </ul>
-            </InfoBox>
+            <details className="border border-gray-200 rounded-lg">
+              <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                About Lead Magnet Performance
+              </summary>
+              <div className="px-4 pb-4">
+                <InfoBox title="About Lead Magnet Performance">
+                      <p className="mb-2">
+                        This section tracks the performance of your lead magnet landing pages (deck analysis tools):
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>Landed:</strong> Total number of unique sessions on the lead magnet landing page (each <code className="bg-gray-100 px-1 rounded">SessionID</code> = 1 session)</li>
+                        <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources. If medium doesn&apos;t contain &quot;rec&quot;, it&apos;s not counted as a unique lead visitor.</li>
+                    <li><strong>Session Engagement Duration:</strong> Highlights leads staying &gt; 20 seconds (engaged) and &lt; 10 seconds (immediate bounce), with lead lists for each.</li>
+                        <li><strong>Deck Submission:</strong> Total number of pitch decks submitted for analysis. Also shows unique leads who submitted (one lead can submit multiple decks). This is the conversion metric from landing to submission.</li>
+                        <li><strong>Analysis Result Email Interactions:</strong> Opens and clicks on lead magnet deck analysis report emails, filtered by <code className="bg-gray-100 px-1 rounded">mailgun_tags</code> containing &quot;analysis result&quot; or &quot;analysis&quot;. Shows total opens, clicks, and unique leads who opened/clicked.</li>
+                        <li>Charts display the latest 12 weeks of data for better trend visualization</li>
+                        <li>Track conversion rate from landed to submission to optimize the funnel</li>
+                      </ul>
+                    </InfoBox>
+              </div>
+            </details>
 
             <div className="space-y-6">
-              <MetricSection
-                title="Landed"
-                metrics={leadMagnetMetrics.landed}
-                formatValue={(val) => `${Math.round(val)}`}
-                unit="sessions"
-                showChart={true}
-                chartType="line"
+              <details className="border border-gray-200 rounded-lg p-4">
+                <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">Landed</summary>
+                <div className="mt-4">
+                      <MetricSection
+                        title="Landed"
+                        metrics={leadMagnetMetrics.landed}
+                        formatValue={(val) => `${Math.round(val)}`}
+                        unit="sessions"
+                        showChart={true}
+                        chartType="line"
+                    hideTitle
+                      />
+                    </div>
+              </details>
+                      <MetricSection
+                        title="Unique Lead Visitors"
+                        metrics={leadMagnetMetrics.uniqueVisits}
+                        formatValue={(val) => `${Math.round(val)}`}
+                        unit="visitors"
+                        showChart={true}
+                        chartType="line"
+                      />
+                      <MetricSection
+                title="Session Engagement Duration"
+                        metrics={leadMagnetMetrics.avgDuration}
+                formatValue={(val) => `${Math.round(val).toLocaleString()}`}
+                unit="leads"
+                showChart={false}
+                hideTitle={false}
               />
-              <MetricSection
-                title="Unique Lead Visitors"
-                metrics={leadMagnetMetrics.uniqueVisits}
-                formatValue={(val) => `${Math.round(val)}`}
-                unit="visitors"
-                showChart={true}
-                chartType="line"
-              />
-              <MetricSection
-                title="Avg. Session Duration"
-                metrics={leadMagnetMetrics.avgDuration}
-                formatValue={(val) => `${Math.round(val)}s`}
-                unit=""
-                showChart={true}
-                chartType="line"
-              />
-              <MetricSection
-                title="Deck Submission"
-                metrics={leadMagnetMetrics.submissions}
-                unit="submissions"
-                showChart={true}
-                chartType="bar"
-              />
-              <MetricSection
-                title="Analysis Result Email Interactions"
-                metrics={analysisResultEmailInteractionMetrics}
-                showPercentage={false}
-                unit="opens"
-                showChart={true}
-                chartType="line"
-              />
-            </div>
-          </div>
-        </div>
+                      <MetricSection
+                        title="Deck Submission"
+                        metrics={leadMagnetMetrics.submissions}
+                        unit="submissions"
+                        showChart={true}
+                        chartType="bar"
+                      />
+                      <MetricSection
+                        title="Analysis Result Email Interactions"
+                        metrics={analysisResultEmailInteractionMetrics}
+                        showPercentage={false}
+                        unit="opens"
+                        showChart={true}
+                        chartType="line"
+                      />
+                    </div>
+                  </div>
+                </div>
       ),
     }),
     [
       leadMagnetLeadsMetrics,
       leadMagnetMetrics,
-      mktOutreachMetrics,
-      nurtureEmailInteractionMetrics,
-      nurtureEmailMetrics,
-      outreachEmailInteractionMetrics,
+      outreachCombinedMetrics,
+      nurtureCombinedMetrics,
       bookACallLeadsMetrics,
       analysisResultEmailInteractionMetrics,
     ]
@@ -883,51 +1024,58 @@ export default function Dashboard() {
     <div className="space-y-8">
       <div>
         <h3 className="text-xl font-semibold mb-4 text-gray-800">DM Outreach</h3>
-        <InfoBox title="About DM Outreach">
-          <p className="mb-2">
-            This section tracks LinkedIn Direct Message outreach and engagement:
-          </p>
-          <ul className="list-disc list-inside space-y-1">
-            <li><strong>New DMs Conversation Start:</strong> Number of unique new conversations started each week where you sent the first DM. Uses <code className="bg-gray-100 px-1 rounded">Conversation_id</code> to identify unique conversations and counts each conversation in the week it first appeared.</li>
-            <li><strong>Lead Replied Conversations:</strong> Total number of unique conversations in that week where a correspondent (the lead) sent at least one message.</li>
-            <li><strong>No Reply:</strong> New conversations where only you sent messages (lead didn&apos;t respond).</li>
-            <li><strong>% Lead Replied over DMed:</strong> Response rate for new conversations (Lead Replied ÷ New DMs) × 100. This is an engagement quality metric.</li>
-            <li><strong>Followup Conversations:</strong> Number of conversations in that week where ME sent a message after a lead had already replied (counts followups whenever they happen).</li>
-            <li><strong>Note:</strong> New DMs are counted in the week they start; reply and followup counts reflect activity in the week the messages were sent.</li>
-            <li>Charts display the latest 12 weeks of data for better trend visualization.</li>
-            <li>The detailed breakdown below shows message counts by sender (You vs. Correspondent) and identifies the most active conversations.</li>
-          </ul>
-        </InfoBox>
+        <details className="border border-gray-200 rounded-lg">
+          <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+            About DM Outreach
+          </summary>
+          <div className="px-4 pb-4">
+            <InfoBox title="About DM Outreach">
+              <p className="mb-2">
+                This section tracks LinkedIn Direct Message outreach and engagement:
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                <li><strong>New DMs Conversation Start:</strong> Number of unique new conversations started each week where you sent the first DM. Uses <code className="bg-gray-100 px-1 rounded">Conversation_id</code> to identify unique conversations and counts each conversation in the week it first appeared.</li>
+                <li><strong>Lead Replied Conversations:</strong> Total number of unique conversations in that week where a correspondent (the lead) sent at least one message.</li>
+                <li><strong>No Reply:</strong> New conversations where only you sent messages (lead didn&apos;t respond).</li>
+                <li><strong>% Lead Replied over DMed:</strong> Response rate for new conversations (Lead Replied ÷ New DMs) × 100. This is an engagement quality metric.</li>
+                <li><strong>Followup Conversations:</strong> Number of conversations in that week where ME sent a message after a lead had already replied (counts followups whenever they happen).</li>
+                <li><strong>Note:</strong> New DMs are counted in the week they start; reply and followup counts reflect activity in the week the messages were sent.</li>
+                <li>Charts display the latest 12 weeks of data for better trend visualization.</li>
+                <li>The detailed breakdown below shows message counts by sender (You vs. Correspondent) and identifies the most active conversations.</li>
+              </ul>
+            </InfoBox>
+          </div>
+        </details>
 
-        <div className="space-y-6">
-          <MetricSection
-            title="New DMs Conversation Start"
-            metrics={dmMetrics}
-            showPercentage={true}
-            percentageLabel="Lead Replied"
-            unit="conversations"
-            showChart={true}
-            chartType="line"
-          />
-          <MetricSection
-            title="Lead Replied Conversations"
-            metrics={dmLeadRepliedMetrics}
-            unit="conversations"
-            showChart={true}
-            chartType="line"
-          />
-          <MetricSection
-            title="Followup Conversations"
-            metrics={dmFollowupMetrics}
-            unit="conversations"
-            showChart={true}
-            chartType="line"
-          />
+            <div className="space-y-6">
+              <MetricSection
+                title="New DMs Conversation Start"
+                metrics={dmMetrics}
+                showPercentage={true}
+                percentageLabel="Lead Replied"
+                unit="conversations"
+                showChart={true}
+                chartType="line"
+              />
+              <MetricSection
+                title="Lead Replied Conversations"
+                metrics={dmLeadRepliedMetrics}
+                unit="conversations"
+                showChart={true}
+                chartType="line"
+              />
+              <MetricSection
+                title="Followup Conversations"
+                metrics={dmFollowupMetrics}
+                unit="conversations"
+                showChart={true}
+                chartType="line"
+              />
+            </div>
+
+            {dmDetails.length > 0 && <DMDetailsSection details={dmDetails} />}
+          </div>
         </div>
-
-        {dmDetails.length > 0 && <DMDetailsSection details={dmDetails} />}
-      </div>
-    </div>
   ), [dmDetails, dmFollowupMetrics, dmLeadRepliedMetrics, dmMetrics]);
 
   const tabs = useMemo<TabConfig[]>(
@@ -942,53 +1090,103 @@ export default function Dashboard() {
               <p className="text-gray-600">
                 Overview of the last completed week across marketing and sales funnels.
               </p>
-              <InfoBox title="How These Metrics Are Calculated">
-                <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                  <li>
-                    <strong>Outreach Email Open Rate:</strong> Outreach email opens ÷ outreach emails sent for the last completed week.
-                  </li>
-                  <li>
-                    <strong>Outreach Email Click Rate:</strong> Outreach email clicks ÷ outreach email opens for the week.
-                  </li>
-                  <li>
-                    <strong>Nurture Email Open Rate:</strong> Nurture email opens ÷ nurture emails sent for the week.
-                  </li>
-                  <li>
-                    <strong>Nurture Email Click Rate:</strong> Nurture email clicks ÷ nurture email opens for the week.
-                  </li>
-                  <li>
-                    <strong>LinkedIn DM Replies:</strong> Conversations where the correspondent replied at least once last week.
-                  </li>
-                  <li>
-                    <strong>LinkedIn DM Reply Rate (New):</strong> New conversations with a lead reply ÷ new conversations started last week.
-                  </li>
-                  <li>
-                    <strong>LinkedIn DM Followup Rate:</strong> Conversations where ME sent a followup after the lead replied last week.
-                  </li>
-                  <li>
-                    <strong>Book a Call CTR:</strong> Button clicks ÷ landing sessions for the last completed week.
-                  </li>
-                  <li>
-                    <strong>Click-to-Lead Rate:</strong> Book a call leads recorded ÷ button clicks for the week.
-                  </li>
-                  <li>
-                    <strong>Leads Not Opening Outreach Email:</strong> Outreach recipients who had no open events last week (unique recipients − unique opens).
-                  </li>
-                  <li>
-                    <strong>Leads Opening Outreach Email &gt;1x:</strong> Count of leads with more than one outreach open event last week.
-                  </li>
-                  <li>
-                    Week-over-week changes compare to the prior completed week; current calendar week is excluded.
-                  </li>
-                </ul>
-              </InfoBox>
+              <details className="border border-gray-200 rounded-lg">
+                <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                  How These Metrics Are Calculated
+                </summary>
+                <div className="px-4 pb-4">
+                  <InfoBox title="How These Metrics Are Calculated">
+                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                      <li>
+                        <strong>Outreach Unique Leads Reached:</strong> Distinct leads who received an outreach email last week.
+                      </li>
+                      <li>
+                        <strong>Outreach Unique Leads Opened:</strong> Distinct leads who opened an outreach email (same week).
+                      </li>
+                      <li>
+                        <strong>Outreach Unique Leads Clicked:</strong> Distinct leads who clicked any outreach link last week.
+                      </li>
+                      <li>
+                        <strong>Nurture Unique Leads Reached:</strong> Distinct leads who received nurture emails last week.
+                      </li>
+                      <li>
+                        <strong>Nurture Unique Leads Opened:</strong> Distinct nurture recipients who opened at least one email.
+                      </li>
+                      <li>
+                        <strong>Nurture Unique Leads Clicked:</strong> Distinct nurture recipients who clicked any link.
+                      </li>
+                      <li>
+                        <strong>Lead Magnet Unique Lead Submissions:</strong> Distinct leads who submitted decks during the week.
+                      </li>
+                      <li>
+                        <strong>Lead Magnet Unique Visitors:</strong> Distinct leads who landed on the lead magnet pages (medium contains “rec”).
+                      </li>
+                      <li>
+                        <strong>Lead Magnet Engagement:</strong> Leads spending &gt; 20 seconds (engaged) and &lt; 10 seconds (bounce) on lead magnet pages.
+                      </li>
+                      <li>
+                        <strong>FF Unique Visitors:</strong> Distinct leads who landed on the FF site (medium contains “rec”).
+                      </li>
+                      <li>
+                        <strong>Leads Clicking Book a Call:</strong> Distinct leads who clicked the Book a Call button last week.
+                      </li>
+                      <li>
+                        <strong>FF Landing Engagement:</strong> Leads spending &gt; 20 seconds (engaged) and &lt; 10 seconds (bounce) on the FF landing page.
+                      </li>
+                      <li>
+                        <strong>LinkedIn DM Replies:</strong> Conversations where the correspondent replied at least once last week.
+                      </li>
+                      <li>
+                        <strong>LinkedIn DM Reply Rate (New):</strong> New conversations with a lead reply ÷ new conversations started last week.
+                      </li>
+                      <li>
+                        <strong>LinkedIn DM Followup Rate:</strong> Conversations where ME sent a followup after the lead replied last week.
+                      </li>
+                      <li>
+                        Week-over-week changes compare to the prior completed week; current calendar week is excluded.
+                      </li>
+                    </ul>
+                  </InfoBox>
+                </div>
+              </details>
             </section>
 
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Marketing Snapshot</h3>
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Marketing Snapshot{lastCompletedWeekInfo.label ? ` (${lastCompletedWeekInfo.label})` : ''}
+                </h3>
                 <span className="text-xs text-gray-500">Excludes current calendar week</span>
               </div>
+              {claudeReport && claudeReport.analysis && claudeReport.analysis.marketingHighlights && (
+                <div className="bg-white border border-indigo-200 rounded-lg p-6 mb-6 shadow-sm">
+                  <h4 className="text-sm font-semibold text-indigo-700">Claude Analysis Highlights</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 text-sm text-gray-700">
+                    <div>
+                      <h5 className="font-semibold text-gray-800 mb-1">Marketing Highlights</h5>
+                      <ul className="list-disc list-inside space-y-1">
+                        {(claudeReport.analysis.marketingHighlights ?? []).map((item: string, idx: number) => (
+                          <li key={`marketing-highlight-${idx}`}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-gray-800 mb-1">Risks</h5>
+                      <ul className="list-disc list-inside space-y-1">
+                        {(claudeReport.analysis.risks ?? []).map((item: string, idx: number) => (
+                          <li key={`marketing-risk-${idx}`}>{item}</li>
+                        ))}
+                      </ul>
+                      <h5 className="font-semibold text-gray-800 mt-3 mb-1">Next Actions</h5>
+                      <ul className="list-disc list-inside space-y-1">
+                        {(claudeReport.analysis.nextActions ?? []).map((item: string, idx: number) => (
+                          <li key={`marketing-action-${idx}`}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
               {marketingSummaryCards.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {marketingSummaryCards.map(renderSummaryCard)}
@@ -1000,9 +1198,21 @@ export default function Dashboard() {
 
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Sales Snapshot</h3>
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Sales Snapshot{lastCompletedWeekInfo.label ? ` (${lastCompletedWeekInfo.label})` : ''}
+                </h3>
                 <span className="text-xs text-gray-500">Excludes current calendar week</span>
               </div>
+              {claudeReport && claudeReport.analysis && claudeReport.analysis.salesHighlights && (
+                <div className="bg-white border border-green-200 rounded-lg p-6 mb-6 shadow-sm">
+                  <h4 className="text-sm font-semibold text-green-700">Claude Sales Highlights</h4>
+                  <ul className="list-disc list-inside mt-3 space-y-1 text-sm text-gray-700">
+                    {(claudeReport.analysis.salesHighlights ?? []).map((item: string, idx: number) => (
+                      <li key={`sales-highlight-${idx}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {salesSummaryCards.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {salesSummaryCards.map(renderSummaryCard)}
@@ -1014,7 +1224,9 @@ export default function Dashboard() {
 
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">LinkedIn DM Snapshot</h3>
+                <h3 className="text-xl font-semibold text-gray-800">
+                  LinkedIn DM Snapshot{lastCompletedWeekInfo.label ? ` (${lastCompletedWeekInfo.label})` : ''}
+                </h3>
               </div>
               {linkedinSummaryCards.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -1072,88 +1284,107 @@ export default function Dashboard() {
         content: (
           <div className="space-y-12">
             <section>
-              <h2 className="text-3xl font-bold mb-6 text-green-700">Sales Funnel (WoW)</h2>
+          <h2 className="text-3xl font-bold mb-6 text-green-700">Sales Funnel (WoW)</h2>
 
-              <div className="mb-8">
-                <h3 className="text-xl font-semibold mb-4 text-gray-800">FF Landing Page</h3>
-                <InfoBox title="About FF Landing Page">
-                  <p className="mb-2">
-                    This section tracks the main Fundraising Flywheel landing page performance:
-                  </p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li><strong>Landed:</strong> Total number of unique sessions on the main landing page (each <code className="bg-gray-100 px-1 rounded">SessionID</code> = 1 session)</li>
-                    <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources. If medium doesn&apos;t contain &quot;rec&quot;, it&apos;s not counted as a unique lead visitor.</li>
-                    <li><strong>Avg. Session Duration:</strong> Average time (in seconds) visitors spend exploring the page per session. Calculated as total duration ÷ number of sessions. Higher duration suggests better fit and higher conversion potential.</li>
-                    <li>This is the entry point for your sales funnel - visitors come here to learn about your services</li>
-                    <li>Charts display the latest 12 weeks of data for better trend visualization</li>
-                    <li>Monitor trends to understand traffic quality and optimize page content</li>
-                  </ul>
-                </InfoBox>
-                <MetricSection
-                  title="Landed"
-                  metrics={salesFunnelMetrics.landed}
-                  formatValue={(val) => `${Math.round(val)}`}
-                  unit="sessions"
-                  showChart={true}
-                  chartType="line"
-                />
-                <div className="mb-6">
-                  <MetricSection
-                    title="Unique Lead Visitors"
-                    metrics={salesFunnelMetrics.uniqueVisits}
-                    formatValue={(val) => `${Math.round(val)}`}
-                    unit="visitors"
-                    showChart={true}
-                    chartType="line"
-                  />
-                </div>
-                <MetricSection
-                  title="Avg. Session Duration"
-                  metrics={salesFunnelMetrics.avgDuration}
-                  formatValue={(val) => `${Math.round(val)}s`}
-                  unit=""
-                  showChart={true}
-                  chartType="line"
-                />
+          <div className="mb-8">
+            <h3 className="text-xl font-semibold mb-4 text-gray-800">FF Landing Page</h3>
+            <details className="border border-gray-200 rounded-lg">
+              <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                About FF Landing Page
+              </summary>
+              <div className="px-4 pb-4">
+            <InfoBox title="About FF Landing Page">
+              <p className="mb-2">
+                This section tracks the main Fundraising Flywheel landing page performance:
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                <li><strong>Landed:</strong> Total number of unique sessions on the main landing page (each <code className="bg-gray-100 px-1 rounded">SessionID</code> = 1 session)</li>
+                <li><strong>Unique Lead Visitors:</strong> Number of unique mediums (where medium contains &quot;rec&quot;) that visited the page. Multiple sessions can share the same medium, so this counts unique lead sources. If medium doesn&apos;t contain &quot;rec&quot;, it&apos;s not counted as a unique lead visitor.</li>
+                    <li><strong>Session Engagement Duration:</strong> Highlights leads staying &gt; 20 seconds (engaged) and &lt; 10 seconds (immediate bounce), including who they are.</li>
+                <li>This is the entry point for your sales funnel - visitors come here to learn about your services</li>
+                <li>Charts display the latest 12 weeks of data for better trend visualization</li>
+                <li>Monitor trends to understand traffic quality and optimize page content</li>
+              </ul>
+            </InfoBox>
               </div>
-
-              <div className="mb-8">
-                <h3 className="text-xl font-semibold mb-4 text-gray-800">Book a Call</h3>
-                <InfoBox title="About Book a Call">
-                  <p className="mb-2">
-                    This section tracks the final conversion step in your sales funnel:
-                  </p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li><strong>Total Clicks:</strong> Number of times the &quot;Book a Call&quot; button was clicked on the FF landing page (counted in the week the click occurred)</li>
-                    <li><strong>% of Landed vs Clicked Book a Call:</strong> Click-through rate showing what percentage of visitors who landed on the FF landing page clicked the &quot;Book a Call&quot; button</li>
-                    <li><strong>How it works:</strong> The metric calculates (Button Clicks ÷ Landed Sessions) × 100</li>
-                    <li><strong>What it means:</strong> Of all visitors who landed on the FF landing page in a given week, what percentage clicked the &quot;Book a Call&quot; button?</li>
-                    <li><strong>Example:</strong> If 1000 people landed on the FF landing page and 50 clicked the &quot;Book a Call&quot; button, the click-through rate is 5%</li>
-                    <li><strong>Why this matters:</strong> This metric measures the effectiveness of your call-to-action. A higher percentage indicates that visitors are interested and engaged enough to click the button.</li>
-                    <li>A lower percentage may indicate that the button placement, visibility, or messaging needs improvement</li>
-                    <li>A higher percentage indicates a strong call-to-action and good visitor engagement</li>
-                    <li>Track week-over-week trends to identify if changes to the landing page or button improve or worsen click-through rates</li>
-                    <li>Note: This metric will continue to be tracked until the &quot;Book a Call&quot; feature is officially removed</li>
-                  </ul>
-                </InfoBox>
-                <MetricSection
-                  title="Total Clicks on Book a Call Button"
-                  metrics={salesFunnelMetrics.clicks}
-                  unit="clicks"
-                  showChart={true}
-                  chartType="bar"
-                />
-                <MetricSection
-                  title="% of Landed vs Clicked Book a Call"
-                  metrics={salesFunnelMetrics.clickToLanded}
-                  showPercentage={false}
-                  unit="%"
-                  showChart={true}
-                  chartType="line"
-                />
+            </details>
+            <details className="border border-gray-200 rounded-lg p-4">
+              <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">Landed</summary>
+              <div className="mt-4">
+            <MetricSection
+              title="Landed"
+              metrics={salesFunnelMetrics.landed}
+              formatValue={(val) => `${Math.round(val)}`}
+              unit="sessions"
+              showChart={true}
+              chartType="line"
+                  hideTitle
+            />
               </div>
-            </section>
+            </details>
+            <div className="mb-6 mt-6">
+              <MetricSection
+                title="Unique Lead Visitors"
+                metrics={salesFunnelMetrics.uniqueVisits}
+                formatValue={(val) => `${Math.round(val)}`}
+                unit="visitors"
+                showChart={true}
+                chartType="line"
+              />
+            </div>
+            <MetricSection
+              title="Session Engagement Duration"
+              metrics={salesFunnelMetrics.avgDuration}
+              formatValue={(val) => `${Math.round(val).toLocaleString()}`}
+              unit="leads"
+              showChart={false}
+            />
           </div>
+
+          <div className="mb-8">
+            <h3 className="text-xl font-semibold mb-4 text-gray-800">Book a Call</h3>
+            <details className="border border-gray-200 rounded-lg">
+              <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                About Book a Call
+              </summary>
+              <div className="px-4 pb-4">
+            <InfoBox title="About Book a Call">
+              <p className="mb-2">
+                This section tracks the final conversion step in your sales funnel:
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                <li><strong>Total Clicks:</strong> Number of times the &quot;Book a Call&quot; button was clicked on the FF landing page (counted in the week the click occurred)</li>
+                    <li><strong>% of Landed vs Clicked Book a Call:</strong> Click-through rate showing what percentage of visitors who landed on the FF landing page clicked the &quot;Book a Call&quot; button</li>
+                <li><strong>How it works:</strong> The metric calculates (Button Clicks ÷ Landed Sessions) × 100</li>
+                <li><strong>What it means:</strong> Of all visitors who landed on the FF landing page in a given week, what percentage clicked the &quot;Book a Call&quot; button?</li>
+                <li><strong>Example:</strong> If 1000 people landed on the FF landing page and 50 clicked the &quot;Book a Call&quot; button, the click-through rate is 5%</li>
+                <li><strong>Why this matters:</strong> This metric measures the effectiveness of your call-to-action. A higher percentage indicates that visitors are interested and engaged enough to click the button.</li>
+                <li>A lower percentage may indicate that the button placement, visibility, or messaging needs improvement</li>
+                <li>A higher percentage indicates a strong call-to-action and good visitor engagement</li>
+                <li>Track week-over-week trends to identify if changes to the landing page or button improve or worsen click-through rates</li>
+                <li>Note: This metric will continue to be tracked until the &quot;Book a Call&quot; feature is officially removed</li>
+              </ul>
+            </InfoBox>
+              </div>
+            </details>
+            <MetricSection
+              title="Total Clicks on Book a Call Button"
+              metrics={salesFunnelMetrics.clicks}
+              unit="clicks"
+              showChart={true}
+              chartType="bar"
+            />
+            <MetricSection
+                  title="% of Landed vs Clicked Book a Call"
+              metrics={salesFunnelMetrics.clickToLanded}
+              showPercentage={false}
+              unit="%"
+              showChart={true}
+              chartType="line"
+            />
+          </div>
+            </section>
+        </div>
         ),
       },
     ],
@@ -1166,6 +1397,8 @@ export default function Dashboard() {
       renderSummaryCard,
       salesFunnelMetrics,
       salesSummaryCards,
+      lastCompletedWeekInfo,
+      claudeReport,
     ]
   );
 
