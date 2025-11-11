@@ -24,6 +24,11 @@ export interface Metric {
   clickLeadEmails?: string[];
   clickLinksByEmail?: Record<string, string[]>;
   leadSessionCounts?: Record<string, number>;
+  replied?: number;
+  noReply?: number;
+  success?: number;
+  failed?: number;
+  leadsOpenedMultiple?: number;
   deckBreakdown?: {
     primaryCount?: number;
     redemptiveCount?: number;
@@ -202,6 +207,7 @@ function calculateEmailInteractionMetricsByTag(
   const uniqueEmailsOpenedMap = new Map<string, Set<string>>();
   const uniqueEmailsClickedMap = new Map<string, Set<string>>();
   const clickLinkMap = new Map<string, Map<string, Set<string>>>(); // week -> email -> links
+  const openCountMap = new Map<string, Map<string, number>>();
 
   emailInteractions.forEach((record) => {
     const weekStart = record['Week start of report date'];
@@ -241,8 +247,14 @@ function calculateEmailInteractionMetricsByTag(
       clickLinkMap.set(weekStart, new Map<string, Set<string>>());
     }
 
+    if (!openCountMap.has(weekStart)) {
+      openCountMap.set(weekStart, new Map<string, number>());
+    }
+
     if (event.includes('open')) {
       uniqueEmailsOpenedMap.get(weekStart)!.add(emailKey);
+      const openCounts = openCountMap.get(weekStart)!;
+      openCounts.set(emailKey, (openCounts.get(emailKey) || 0) + 1);
     }
 
     if (event.includes('click')) {
@@ -269,6 +281,8 @@ function calculateEmailInteractionMetricsByTag(
       emailLinkMap.forEach((set, email) => {
         clickLinksByEmail[email] = Array.from(set);
       });
+      const openCounts = openCountMap.get(week) || new Map<string, number>();
+      const leadsOpenedMultiple = Array.from(openCounts.values()).filter((count) => count > 1).length;
 
       return {
         week,
@@ -277,6 +291,7 @@ function calculateEmailInteractionMetricsByTag(
         uniqueEmails,
         uniqueEmailsOpened: uniqueOpened,
         uniqueEmailsClicked: uniqueClicked,
+        leadsOpenedMultiple,
         links: Array.from(linksSet.values()),
         clickLinksByEmail,
       };
@@ -453,44 +468,19 @@ export function calculateDMMetrics(linkedinDMLog: any[]): Metric[] {
 export function calculateDMLeadRepliedMetrics(linkedinDMLog: any[]): Metric[] {
   const weekMap = new Map<string, Set<string>>();
 
-  // Track senders per conversation to identify replies
-  const conversationSenders = new Map<string, Set<string>>();
-  const conversationFirstWeek = new Map<string, string>(); // Track first week each conversation appeared
-
-  // First pass: collect all conversation data and track senders
   linkedinDMLog.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const conversationId = record['Conversation_id'];
-    const sender = record['Sender']?.trim() || '';
-    
+    const sender = record['Sender']?.toString().trim().toLowerCase() || '';
+
     if (!weekStart || !conversationId) return;
 
-    // Track first week this conversation appeared
-    if (!conversationFirstWeek.has(conversationId)) {
-      conversationFirstWeek.set(conversationId, weekStart);
+    if (!weekMap.has(weekStart)) {
+      weekMap.set(weekStart, new Set<string>());
     }
 
-    // Track senders for each conversation
-    if (!conversationSenders.has(conversationId)) {
-      conversationSenders.set(conversationId, new Set<string>());
-    }
-    if (sender) {
-      conversationSenders.get(conversationId)!.add(sender.toLowerCase());
-    }
-  });
-
-  // Second pass: identify conversations where lead replied (multiple senders)
-  // and count them in the week they first appeared
-  conversationSenders.forEach((senders, conversationId) => {
-    // If there are multiple senders, it means lead replied
-    if (senders.size > 1) {
-      const firstWeek = conversationFirstWeek.get(conversationId);
-      if (firstWeek) {
-        if (!weekMap.has(firstWeek)) {
-          weekMap.set(firstWeek, new Set<string>());
-        }
-        weekMap.get(firstWeek)!.add(conversationId);
-      }
+    if (sender && sender !== 'me') {
+      weekMap.get(weekStart)!.add(conversationId);
     }
   });
 
@@ -524,84 +514,65 @@ export function calculateDMLeadRepliedMetrics(linkedinDMLog: any[]): Metric[] {
 export function calculateDMFollowupMetrics(linkedinDMLog: any[]): Metric[] {
   const weekMap = new Map<string, Set<string>>();
 
-  // Step 1: Identify all conversations where lead replied (has multiple senders)
-  const conversationSenders = new Map<string, Set<string>>();
   const conversationMessages = new Map<string, Array<{ sender: string; week: string; sentTime: string }>>();
-  
-  // Collect all messages with their details
+
   linkedinDMLog.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const conversationId = record['Conversation_id'];
-    const sender = record['Sender']?.trim() || '';
+    const sender = record['Sender']?.toString().trim().toLowerCase() || '';
     const sentTime = record['Sent time'] || '';
-    
+
     if (!weekStart || !conversationId) return;
 
-    // Track senders
-    if (!conversationSenders.has(conversationId)) {
-      conversationSenders.set(conversationId, new Set<string>());
+    if (!conversationMessages.has(conversationId)) {
       conversationMessages.set(conversationId, []);
     }
-    
-    if (sender) {
-      conversationSenders.get(conversationId)!.add(sender.toLowerCase());
-    }
-    
+
     conversationMessages.get(conversationId)!.push({
-      sender: sender.toLowerCase(),
+      sender,
       week: weekStart,
       sentTime: sentTime,
     });
   });
 
-  // Step 2: For each conversation where lead replied (multiple senders),
-  // find when ME sent a message AFTER the lead replied
-  conversationSenders.forEach((senders, conversationId) => {
-    // Only process conversations where lead replied (multiple senders)
-    if (senders.size <= 1) return;
-
-    const messages = conversationMessages.get(conversationId) || [];
-    
-    // Sort messages by sent time to determine order
+  conversationMessages.forEach((messages, conversationId) => {
     const sortedMessages = messages.sort((a, b) => {
-      // Try to parse sent time, fallback to week comparison
       const timeA = a.sentTime ? new Date(a.sentTime).getTime() : 0;
       const timeB = b.sentTime ? new Date(b.sentTime).getTime() : 0;
-      if (timeA !== 0 && timeB !== 0) return timeA - timeB;
-      // If times are equal or invalid, compare by week
+      if (timeA && timeB && timeA !== timeB) return timeA - timeB;
       return sortWeeksChronologically(a.week, b.week);
     });
 
-    // Find the first message from CORRESPONDENT (lead replied)
-    let firstCorrespondentIndex = -1;
-    for (let i = 0; i < sortedMessages.length; i++) {
-      const msg = sortedMessages[i];
-      const senderLower = msg.sender.toLowerCase();
-      // CORRESPONDENT means someone other than ME
-      if (senderLower !== '' && senderLower !== 'me') {
-        firstCorrespondentIndex = i;
-        break;
-      }
-    }
+    let leadHasReplied = false;
 
-    // If we found a correspondent message, check for followup messages from ME after that
-    if (firstCorrespondentIndex >= 0) {
-      for (let i = firstCorrespondentIndex + 1; i < sortedMessages.length; i++) {
-        const msg = sortedMessages[i];
-        const senderLower = msg.sender.toLowerCase();
-        // If ME sent a message after lead replied, this is a followup
-        if (senderLower === '' || senderLower === 'me') {
-          const followupWeek = msg.week;
-          if (!weekMap.has(followupWeek)) {
-            weekMap.set(followupWeek, new Set<string>());
-          }
-          // Count this conversation in the week of the followup
-          weekMap.get(followupWeek)!.add(conversationId);
-          // Only count once per conversation per week (first followup in that week)
-          break;
-        }
+    sortedMessages.forEach((msg, index) => {
+      const senderLower = msg.sender.toLowerCase();
+      const isMeMessage = senderLower === '' || senderLower === 'me';
+      const isCorrespondentMessage = senderLower !== '' && senderLower !== 'me';
+
+      if (isCorrespondentMessage) {
+        leadHasReplied = true;
+        return;
       }
-    }
+
+      if (!isMeMessage) {
+        return;
+      }
+
+      if (!leadHasReplied) {
+        return;
+      }
+
+      if (index === 0) {
+        return;
+      }
+
+      if (!weekMap.has(msg.week)) {
+        weekMap.set(msg.week, new Set<string>());
+      }
+
+      weekMap.get(msg.week)!.add(conversationId);
+    });
   });
 
   const metrics: Metric[] = Array.from(weekMap.entries())
