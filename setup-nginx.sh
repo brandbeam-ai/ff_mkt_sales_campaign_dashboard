@@ -7,7 +7,7 @@
 set -e
 
 # Configuration
-DOMAIN="mkt_sale_dashboard.11spark.org"
+DOMAIN="mktsaledashboard.11spark.org"
 APP_PORT="3022"
 EMAIL="digicon@digicon.pro"  # Change this to your email for SSL certificate notifications
 
@@ -44,11 +44,11 @@ cat > /etc/nginx/sites-available/${DOMAIN} << 'EOF'
 server {
     listen 80;
     listen [::]:80;
-    server_name mkt_sale_dashboard.11spark.org;
+    server_name mktsaledashboard.11spark.org;
 
     # Logging
-    access_log /var/log/nginx/mkt_sale_dashboard.11spark.org.access.log;
-    error_log /var/log/nginx/mkt_sale_dashboard.11spark.org.error.log;
+    access_log /var/log/nginx/mktsaledashboard.11spark.org.access.log;
+    error_log /var/log/nginx/mktsaledashboard.11spark.org.error.log;
 
     # Client body size (for file uploads)
     client_max_body_size 50M;
@@ -166,8 +166,8 @@ echo "  systemctl status nginx    - Check Nginx status"
 echo "  systemctl reload nginx    - Reload Nginx configuration"
 echo "  certbot renew             - Manually renew SSL certificate"
 echo "  certbot certificates      - List all certificates"
-echo "  tail -f /var/log/nginx/mkt_sale_dashboard.11spark.org.access.log - View access logs"
-echo "  tail -f /var/log/nginx/mkt_sale_dashboard.11spark.org.error.log  - View error logs"
+echo "  tail -f /var/log/nginx/mktsaledashboard.11spark.org.access.log - View access logs"
+echo "  tail -f /var/log/nginx/mktsaledashboard.11spark.org.error.log  - View error logs"
 echo ""
 echo "🔐 SSL Certificate will auto-renew before expiration"
 echo ""
