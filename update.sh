@@ -23,7 +23,7 @@ echo "🔄 Fetching and caching data..."
 npm run update-cache
 
 echo "🔄 Generating Claude report..."
-npm run generate-claude-report
+npm run generate-report
 
 echo "♻️  Restarting PM2 process..."
 pm2 restart $APP_NAME
