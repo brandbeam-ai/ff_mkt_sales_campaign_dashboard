@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nginx configuration script with SSL for creator.digicon.pro
+# Nginx configuration script with SSL for mktsaledashboard.11spark.org
 # This script should be run ON THE VULTR SERVER
 # Usage: bash setup-nginx.sh
 
