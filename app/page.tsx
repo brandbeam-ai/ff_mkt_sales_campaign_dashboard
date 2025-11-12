@@ -38,10 +38,21 @@ interface FunnelData {
 
 interface ClaudeAnalysis {
   weekRange?: string;
-  marketingHighlights: string[];
-  salesHighlights: string[];
-  risks: string[];
-  nextActions: string[];
+  marketingFunnel?: {
+    highlight: string[];
+    hypothesis: string[];
+    nextAction: string[];
+  };
+  salesFunnel?: {
+    highlight: string[];
+    hypothesis: string[];
+    nextAction: string[];
+  };
+  // Legacy fields for backward compatibility
+  marketingHighlights?: string[];
+  salesHighlights?: string[];
+  risks?: string[];
+  nextActions?: string[];
 }
 
 interface ClaudeReport {
@@ -1177,33 +1188,63 @@ export default function Dashboard() {
                 </h3>
                 <span className="text-xs text-gray-500">Excludes current calendar week</span>
               </div>
-              {claudeReport && claudeReport.analysis && claudeReport.analysis.marketingHighlights && (
+              {claudeReport && claudeReport.analysis && (claudeReport.analysis.marketingFunnel || claudeReport.analysis.marketingHighlights) && (
                 <div className="bg-white border border-indigo-200 rounded-lg p-6 mb-6 shadow-sm">
-                  <h4 className="text-sm font-semibold text-indigo-700">Claude Analysis Highlights</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 text-sm text-gray-700">
-                    <div>
-                      <h5 className="font-semibold text-gray-800 mb-1">Marketing Highlights</h5>
-                      <ul className="list-disc list-inside space-y-1">
-                        {(claudeReport.analysis.marketingHighlights ?? []).map((item: string, idx: number) => (
-                          <li key={`marketing-highlight-${idx}`}>{item}</li>
-                        ))}
-                      </ul>
+                  <h4 className="text-sm font-semibold text-indigo-700 mb-4">Claude Marketing Funnel Analysis</h4>
+                  {claudeReport.analysis.marketingFunnel ? (
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Highlight</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.marketingFunnel.highlight ?? []).map((item: string, idx: number) => (
+                            <li key={`marketing-highlight-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Hypothesis</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.marketingFunnel.hypothesis ?? []).map((item: string, idx: number) => (
+                            <li key={`marketing-hypothesis-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Next Action</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.marketingFunnel.nextAction ?? []).map((item: string, idx: number) => (
+                            <li key={`marketing-action-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
-                    <div>
-                      <h5 className="font-semibold text-gray-800 mb-1">Risks</h5>
-                      <ul className="list-disc list-inside space-y-1">
-                        {(claudeReport.analysis.risks ?? []).map((item: string, idx: number) => (
-                          <li key={`marketing-risk-${idx}`}>{item}</li>
-                        ))}
-                      </ul>
-                      <h5 className="font-semibold text-gray-800 mt-3 mb-1">Next Actions</h5>
-                      <ul className="list-disc list-inside space-y-1">
-                        {(claudeReport.analysis.nextActions ?? []).map((item: string, idx: number) => (
-                          <li key={`marketing-action-${idx}`}>{item}</li>
-                        ))}
-                      </ul>
+                  ) : (
+                    // Legacy format fallback
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-1">Marketing Highlights</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.marketingHighlights ?? []).map((item: string, idx: number) => (
+                            <li key={`marketing-highlight-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-1">Risks</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.risks ?? []).map((item: string, idx: number) => (
+                            <li key={`marketing-risk-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                        <h5 className="font-semibold text-gray-800 mt-3 mb-1">Next Actions</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.nextActions ?? []).map((item: string, idx: number) => (
+                            <li key={`marketing-action-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
               {marketingSummaryCards.length > 0 ? (
@@ -1222,14 +1263,44 @@ export default function Dashboard() {
                 </h3>
                 <span className="text-xs text-gray-500">Excludes current calendar week</span>
               </div>
-              {claudeReport && claudeReport.analysis && claudeReport.analysis.salesHighlights && (
+              {claudeReport && claudeReport.analysis && (claudeReport.analysis.salesFunnel || claudeReport.analysis.salesHighlights) && (
                 <div className="bg-white border border-green-200 rounded-lg p-6 mb-6 shadow-sm">
-                  <h4 className="text-sm font-semibold text-green-700">Claude Sales Highlights</h4>
-                  <ul className="list-disc list-inside mt-3 space-y-1 text-sm text-gray-700">
-                    {(claudeReport.analysis.salesHighlights ?? []).map((item: string, idx: number) => (
-                      <li key={`sales-highlight-${idx}`}>{item}</li>
-                    ))}
-                  </ul>
+                  <h4 className="text-sm font-semibold text-green-700 mb-4">Claude Sales Funnel Analysis</h4>
+                  {claudeReport.analysis.salesFunnel ? (
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Highlight</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.salesFunnel.highlight ?? []).map((item: string, idx: number) => (
+                            <li key={`sales-highlight-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Hypothesis</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.salesFunnel.hypothesis ?? []).map((item: string, idx: number) => (
+                            <li key={`sales-hypothesis-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Next Action</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {(claudeReport.analysis.salesFunnel.nextAction ?? []).map((item: string, idx: number) => (
+                            <li key={`sales-action-${idx}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    // Legacy format fallback
+                    <ul className="list-disc list-inside mt-3 space-y-1">
+                      {(claudeReport.analysis.salesHighlights ?? []).map((item: string, idx: number) => (
+                        <li key={`sales-highlight-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
               {salesSummaryCards.length > 0 ? (

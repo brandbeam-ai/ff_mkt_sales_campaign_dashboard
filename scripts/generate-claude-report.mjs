@@ -401,14 +401,34 @@ const safeWoW = (current, previous) => {
 
     const prompt = `You are an analyst reviewing weekly marketing and sales funnel performance metrics. Using the JSON data provided, produce a concise analysis.
 
+Marketing & Sales Funnel Flow:
+1. Marketing Funnel:
+   - Email Outreach: Send → Open → Click
+   - Email Nurture: Send → Open → Click
+   - Lead Magnet: Visitor → Submission (with session duration indicating interest)
+2. Sales Funnel:
+   - FF Landing Page: Visitor → Engagement (session duration >20s = interested, <10s = bounce)
+   - Book a Call: Click button → Conversion
+
 Return a JSON object with the following structure:
 {
   "weekRange": string,
-  "marketingHighlights": string[],
-  "salesHighlights": string[],
-  "risks": string[],
-  "nextActions": string[]
+  "marketingFunnel": {
+    "highlight": string[],
+    "hypothesis": string[],
+    "nextAction": string[]
+  },
+  "salesFunnel": {
+    "highlight": string[],
+    "hypothesis": string[],
+    "nextAction": string[]
+  }
 }
+
+Requirements:
+- "highlight": Report the normal numbers/metrics for this week (just state the facts)
+- "hypothesis": Explain why metrics increased or decreased, identify bottlenecks in the funnel flow based on the marketing & sales flow provided above
+- "nextAction": Suggest specific actions to verify the hypotheses and improve performance
 
 Focus on actionable observations, trends, and practical next steps. DO NOT include any text outside the JSON object.
 
@@ -417,7 +437,7 @@ ${JSON.stringify(claudeInput, null, 2)}`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 1024,
+      max_tokens: 2048,
       temperature: 0.2,
       messages: [
         {
