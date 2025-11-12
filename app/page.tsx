@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
           calculateMKTOutreachMetrics,
           calculateNurtureEmailMetrics,
@@ -288,6 +288,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [activeMarketingTab, setActiveMarketingTab] = useState<MarketingTabId>('emailOutreach');
   const [claudeReport, setClaudeReport] = useState<ClaudeReport | null>(null);
+  const isRegeneratingRef = useRef(false);
+  const lastCheckedWeekRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     async function fetchData() {
@@ -641,6 +643,7 @@ export default function Dashboard() {
         }
         const json = (await res.json()) as ClaudeReport;
         setClaudeReport(json);
+        lastCheckedWeekRef.current = json.weekRange;
       } catch (error) {
         console.warn('Unable to load Claude report:', error);
         setClaudeReport(null);
@@ -656,10 +659,23 @@ export default function Dashboard() {
         return;
       }
 
-      if (claudeReport?.weekRange === lastCompletedWeekInfo.label) {
+      // If we already checked this week, don't check again
+      if (lastCheckedWeekRef.current === lastCompletedWeekInfo.label) {
         return;
       }
 
+      // If report already matches, mark as checked and return
+      if (claudeReport?.weekRange === lastCompletedWeekInfo.label) {
+        lastCheckedWeekRef.current = lastCompletedWeekInfo.label;
+        return;
+      }
+
+      // If already regenerating, don't start another regeneration
+      if (isRegeneratingRef.current) {
+        return;
+      }
+
+      isRegeneratingRef.current = true;
       try {
         const res = await fetch('/api/claude-report', {
           method: 'POST',
@@ -673,13 +689,16 @@ export default function Dashboard() {
 
         const json = (await res.json()) as ClaudeReport;
         setClaudeReport(json);
+        lastCheckedWeekRef.current = json.weekRange;
       } catch (error) {
         console.warn('Unable to automatically regenerate Claude report:', error);
+      } finally {
+        isRegeneratingRef.current = false;
       }
     }
 
     ensureFreshReport();
-  }, [claudeReport?.weekRange, lastCompletedWeekInfo.label, lastCompletedWeekInfo.weekDate]);
+  }, [lastCompletedWeekInfo.label, lastCompletedWeekInfo.weekDate, claudeReport?.weekRange]);
 
   const linkedinSummaryCards = useMemo<SummaryCard[]>(() => {
     const cards: SummaryCard[] = [];

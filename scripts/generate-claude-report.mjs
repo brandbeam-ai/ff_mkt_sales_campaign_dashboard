@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Anthropic from '@anthropic-ai/sdk';
-import { parse } from 'date-fns';
+import { parse, format, addDays } from 'date-fns';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,19 +55,13 @@ const getCurrentWeekStart = () => {
 };
 
 const formatWeekRange = (weekStr) => {
+  if (!weekStr) return 'N/A';
   try {
-    const start = parseWeekStart(weekStr);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    const fmt = (date) =>
-      date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric',
-      });
-    return `${fmt(start)} – ${fmt(end)}`;
+    const weekStart = parseWeekStart(weekStr);
+    const weekEnd = addDays(weekStart, 6);
+    return `${format(weekStart, 'MMM dd')} - ${format(weekEnd, 'MMM dd, yyyy')}`;
   } catch {
-    return weekStr;
+    return weekStr; // Return as-is if parsing fails
   }
 };
 
