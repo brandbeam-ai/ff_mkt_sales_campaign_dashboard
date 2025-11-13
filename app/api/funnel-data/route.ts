@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import base from '@/lib/airtable';
 
 export async function GET() {
   try {
@@ -15,9 +14,23 @@ export async function GET() {
       // Return cached data if it exists
       return NextResponse.json(cachedData);
     } catch (fileError) {
-      // If file doesn't exist or can't be read, fall back to fetching from Airtable
-      console.warn('Cache file not found, fetching from Airtable...', fileError);
+      // If file doesn't exist or can't be read, check if we can fetch from Airtable
+      console.warn('Cache file not found, checking Airtable access...', fileError);
+      
+      // Check if AIRTABLE_API_KEY is available
+      if (!process.env.AIRTABLE_API_KEY) {
+        return NextResponse.json(
+          { 
+            error: 'Cache file not found and AIRTABLE_API_KEY is not set. Please make sure AIRTABLE_API_KEY is set in your .env.local file and run npm run update-cache to create the cache file.',
+            lastUpdated: null
+          },
+          { status: 500 }
+        );
+      }
     }
+
+    // Only import Airtable if we need to fetch from it
+    const base = (await import('@/lib/airtable')).default;
 
     // Fallback: Fetch all data from Airtable if cache doesn't exist
     const results = await Promise.allSettled([
