@@ -8,31 +8,33 @@ export async function GET(request: Request) {
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const fromParam = searchParams.get('from');
+    const toParam = searchParams.get('to');
     
-    // Calculate date range: use 'from' query param if provided, otherwise default to 7 days ago
-    const today = new Date();
-    let lastWeekStart: Date;
+    // Helper function to parse date string
+    const parseDateParam = (dateStr: string): Date => {
+      // Try DD/MM/YYYY format first
+      const parsed = parseDate(dateStr, 'dd/MM/yyyy', new Date());
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+      // Try ISO format (YYYY-MM-DD)
+      const isoParsed = parseDate(dateStr, 'yyyy-MM-dd', new Date());
+      if (!isNaN(isoParsed.getTime())) {
+        return isoParsed;
+      }
+      // Try native Date parsing
+      const nativeParsed = new Date(dateStr);
+      if (isNaN(nativeParsed.getTime())) {
+        throw new Error('Invalid date format');
+      }
+      return nativeParsed;
+    };
     
+    // Parse from date
+    let fromDate: Date;
     if (fromParam) {
-      // Try to parse the 'from' date
       try {
-        // Try DD/MM/YYYY format first
-        const parsed = parseDate(fromParam, 'dd/MM/yyyy', new Date());
-        if (!isNaN(parsed.getTime())) {
-          lastWeekStart = parsed;
-        } else {
-          // Try ISO format (YYYY-MM-DD)
-          const isoParsed = parseDate(fromParam, 'yyyy-MM-dd', new Date());
-          if (!isNaN(isoParsed.getTime())) {
-            lastWeekStart = isoParsed;
-          } else {
-            // Try native Date parsing
-            lastWeekStart = new Date(fromParam);
-            if (isNaN(lastWeekStart.getTime())) {
-              throw new Error('Invalid date format');
-            }
-          }
-        }
+        fromDate = parseDateParam(fromParam);
       } catch {
         return NextResponse.json(
           { error: `Invalid 'from' date format. Use DD/MM/YYYY or YYYY-MM-DD format.` },
@@ -41,11 +43,30 @@ export async function GET(request: Request) {
       }
     } else {
       // Default to 7 days ago
-      lastWeekStart = subDays(today, 7);
+      fromDate = subDays(new Date(), 7);
     }
     
-    const lastWeekStartDate = format(lastWeekStart, 'yyyy-MM-dd');
-    const todayDate = format(today, 'yyyy-MM-dd');
+    // Parse to date
+    let toDate: Date;
+    if (toParam) {
+      try {
+        toDate = parseDateParam(toParam);
+        // Set to end of day for inclusive range
+        toDate.setHours(23, 59, 59, 999);
+      } catch {
+        return NextResponse.json(
+          { error: `Invalid 'to' date format. Use DD/MM/YYYY or YYYY-MM-DD format.` },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Default to today (end of day)
+      toDate = new Date();
+      toDate.setHours(23, 59, 59, 999);
+    }
+    
+    const fromDateStr = format(fromDate, 'yyyy-MM-dd');
+    const toDateStr = format(toDate, 'yyyy-MM-dd');
 
     // Try to read from cached JSON file first
     const dataFilePath = join(process.cwd(), 'data', 'funnel-data.json');
@@ -216,9 +237,9 @@ export async function GET(request: Request) {
         return;
       }
 
-      // Filter by date: only count visits on or after the from date
+      // Filter by date: only count visits within the date range (from to to, inclusive)
       const recordDate = getRecordDate(record);
-      if (!recordDate || recordDate < lastWeekStart) {
+      if (!recordDate || recordDate < fromDate || recordDate > toDate) {
         return;
       }
 
@@ -259,9 +280,9 @@ export async function GET(request: Request) {
         return;
       }
 
-      // Filter by date: only count visits on or after the from date
+      // Filter by date: only count visits within the date range (from to to, inclusive)
       const recordDate = getRecordDate(record);
-      if (!recordDate || recordDate < lastWeekStart) {
+      if (!recordDate || recordDate < fromDate || recordDate > toDate) {
         return;
       }
 
@@ -358,8 +379,8 @@ export async function GET(request: Request) {
       leads: result,
       count: result.length,
       dateRange: {
-        from: lastWeekStartDate,
-        to: todayDate,
+        from: fromDateStr,
+        to: toDateStr,
       },
       criteria: {
         visitedEitherSite: true,

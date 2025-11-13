@@ -720,11 +720,20 @@ export default function Dashboard() {
       
       setInactiveLeadsLoading(true);
       try {
-        // Format date as DD/MM/YYYY for the API
-        const weekDate = parseWeekStart(lastCompletedWeekInfo.weekStart);
-        const formattedDate = `${String(weekDate.getDate()).padStart(2, '0')}/${String(weekDate.getMonth() + 1).padStart(2, '0')}/${weekDate.getFullYear()}`;
+        // Calculate week range: from week start to week end (7 days)
+        const weekStartDate = parseWeekStart(lastCompletedWeekInfo.weekStart);
+        const weekEndDate = new Date(weekStartDate);
+        weekEndDate.setDate(weekEndDate.getDate() + 6); // Add 6 days to get end of week
         
-        const response = await fetch(`/api/lead-magnet-inactive?from=${formattedDate}`);
+        // Format dates as DD/MM/YYYY for the API
+        const formatDate = (date: Date) => {
+          return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+        };
+        
+        const fromDate = formatDate(weekStartDate);
+        const toDate = formatDate(weekEndDate);
+        
+        const response = await fetch(`/api/lead-magnet-inactive?from=${fromDate}&to=${toDate}`);
         if (!response.ok) {
           throw new Error('Failed to fetch inactive leads');
         }
@@ -1363,7 +1372,7 @@ export default function Dashboard() {
                   <h3 className="text-xl font-semibold text-gray-800">
                     Lead Magnet Inactive Leads{lastCompletedWeekInfo.label ? ` (${lastCompletedWeekInfo.label})` : ''}
                   </h3>
-                  <span className="text-xs text-gray-500">Visited but didn't submit</span>
+                  <span className="text-xs text-gray-500">Visited but didn&apos;t submit</span>
                 </div>
                 {inactiveLeads.length > 0 && (
                   <button
@@ -1623,6 +1632,8 @@ export default function Dashboard() {
       salesSummaryCards,
       lastCompletedWeekInfo,
       claudeReport,
+      inactiveLeads,
+      inactiveLeadsLoading,
     ]
   );
 
