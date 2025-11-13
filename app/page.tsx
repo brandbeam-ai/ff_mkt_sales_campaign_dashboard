@@ -317,7 +317,20 @@ const apiFetch = async (url: string, options?: RequestInit) => {
     
     return await response.json();
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     console.error(`API request failed for ${url}:`, err);
+    
+    // Provide more helpful error messages for common issues
+    if (errorMessage.includes('ERR_HTTP2_PROTOCOL_ERROR') || errorMessage.includes('Failed to fetch')) {
+      throw new Error(
+        `Network error: Unable to fetch data from server. This may be due to:\n` +
+        `1. Large response size - please check server logs\n` +
+        `2. Network connectivity issues\n` +
+        `3. Server timeout - the response may be too large\n\n` +
+        `Original error: ${errorMessage}`
+      );
+    }
+    
     throw err;
   }
 };

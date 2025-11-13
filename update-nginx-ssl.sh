@@ -67,6 +67,23 @@ server {
 
     # Client body size (for file uploads)
     client_max_body_size 50M;
+    
+    # Buffer sizes for large responses (especially for HTTP/2)
+    proxy_buffer_size 128k;
+    proxy_buffers 4 256k;
+    proxy_busy_buffers_size 256k;
+    proxy_temp_file_write_size 256k;
+    
+    # HTTP/2 buffer sizes
+    http2_max_field_size 64k;
+    http2_max_header_size 64k;
+    
+    # Enable gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
 
     # Explicit API routes handling (no caching)
     # Use prefix match (without trailing slash) to match /api and /api/*
@@ -79,6 +96,12 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
         proxy_cache_bypass $http_upgrade;
+        
+        # Buffer settings for large API responses
+        proxy_buffering on;
+        proxy_buffer_size 128k;
+        proxy_buffers 8 256k;
+        proxy_busy_buffers_size 512k;
         
         # Timeouts for API calls
         proxy_connect_timeout 120s;

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
+// Increase timeout for large data responses
+export const maxDuration = 60;
+
 export async function GET() {
   try {
     // Try to read from cached JSON file first
@@ -11,8 +14,13 @@ export async function GET() {
       const fileContent = await readFile(dataFilePath, 'utf-8');
       const cachedData = JSON.parse(fileContent);
       
-      // Return cached data if it exists
-      return NextResponse.json(cachedData);
+      // Return cached data if it exists with compression headers
+      return NextResponse.json(cachedData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=3600',
+        },
+      });
     } catch (fileError) {
       // If file doesn't exist or can't be read, check if we can fetch from Airtable
       console.warn('Cache file not found, checking Airtable access...', fileError);
@@ -155,6 +163,7 @@ export async function GET() {
     ] = results;
 
     // Helper function to extract data or return empty array
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const getData = (result: PromiseSettledResult<any>) => {
       if (result.status === 'fulfilled') {
         return result.value;
@@ -184,6 +193,11 @@ export async function GET() {
       deckReports: deckReports.map((r: { fields: unknown }) => r.fields),
       ffInteractions: ffInteractions.map((r: { fields: unknown }) => r.fields),
       bookACall: bookACall.map((r: { fields: unknown }) => r.fields),
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=3600',
+      },
     });
   } catch (error) {
     console.error('Error fetching funnel data:', error);
