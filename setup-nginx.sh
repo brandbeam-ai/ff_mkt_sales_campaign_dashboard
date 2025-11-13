@@ -53,22 +53,21 @@ server {
     # Client body size (for file uploads)
     client_max_body_size 50M;
 
-    # Proxy settings for Next.js
-    location / {
+    # Explicit API routes handling (no caching)
+    location /api/ {
         proxy_pass http://localhost:3022;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_cache_bypass $http_upgrade;
         
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        # Timeouts for API calls
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
     }
 
     # Cache static files
@@ -76,6 +75,7 @@ server {
         proxy_pass http://localhost:3022;
         proxy_cache_valid 200 60m;
         add_header Cache-Control "public, immutable";
+        proxy_set_header Host $host;
     }
 
     # Handle Next.js image optimization
@@ -85,6 +85,25 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Proxy settings for Next.js (catch-all)
+    location / {
+        proxy_pass http://localhost:3022;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_cache_bypass $http_upgrade;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
 }
 EOF
