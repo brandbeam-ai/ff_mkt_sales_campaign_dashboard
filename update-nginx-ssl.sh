@@ -69,7 +69,8 @@ server {
     client_max_body_size 50M;
 
     # Explicit API routes handling (no caching)
-    location /api/ {
+    # Use prefix match (without trailing slash) to match /api and /api/*
+    location /api {
         proxy_pass http://localhost:3022;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
