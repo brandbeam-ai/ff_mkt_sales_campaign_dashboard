@@ -1359,10 +1359,42 @@ export default function Dashboard() {
 
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Lead Magnet Inactive Leads{lastCompletedWeekInfo.label ? ` (${lastCompletedWeekInfo.label})` : ''}
-                </h3>
-                <span className="text-xs text-gray-500">Visited but didn't submit</span>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Lead Magnet Inactive Leads{lastCompletedWeekInfo.label ? ` (${lastCompletedWeekInfo.label})` : ''}
+                  </h3>
+                  <span className="text-xs text-gray-500">Visited but didn't submit</span>
+                </div>
+                {inactiveLeads.length > 0 && (
+                  <button
+                    onClick={() => {
+                      // Convert to CSV
+                      const headers = ['Email', 'LinkedIn URL'];
+                      const rows = inactiveLeads.map(lead => [
+                        lead.email,
+                        lead.linkedInUrl || ''
+                      ]);
+                      const csvContent = [
+                        headers.join(','),
+                        ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+                      ].join('\n');
+                      
+                      // Create download link
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute('href', url);
+                      link.setAttribute('download', `inactive-leads-${lastCompletedWeekInfo.weekStart || 'export'}.csv`);
+                      link.style.visibility = 'hidden';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Export CSV
+                  </button>
+                )}
               </div>
               <details className="border border-gray-200 rounded-lg mb-4">
                 <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
@@ -1399,15 +1431,15 @@ export default function Dashboard() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {lead.email}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <td className="px-6 py-4 text-sm">
                               {lead.linkedInUrl ? (
                                 <a
                                   href={lead.linkedInUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-indigo-600 hover:text-indigo-800 hover:underline"
+                                  className="text-indigo-600 hover:text-indigo-800 hover:underline break-all"
                                 >
-                                  View Profile
+                                  {lead.linkedInUrl}
                                 </a>
                               ) : (
                                 <span className="text-gray-400">Not available</span>

@@ -176,7 +176,30 @@ export async function GET(request: Request) {
     };
 
 
+    // Helper function to parse date from record
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getRecordDate = (record: any): Date | null => {
+      // Try report date first, then week start
+      const reportDateStr = record['report date'] || record['Report date'];
+      const weekStartStr = record['Week start of report date'];
+      
+      if (reportDateStr) {
+        const parsed = parseDate(reportDateStr, 'dd/MM/yyyy', new Date());
+        if (!isNaN(parsed.getTime())) return parsed;
+        // Try ISO format
+        const isoParsed = new Date(reportDateStr);
+        if (!isNaN(isoParsed.getTime())) return isoParsed;
+      }
+      
+      if (weekStartStr) {
+        return parseDate(weekStartStr, 'dd/MM/yyyy', new Date());
+      }
+      
+      return null;
+    };
+
     // Track visits by email and deck source, and also track LinkedIn URLs from interaction records
+    // Only count visits that occurred on or after the from date
     const visitMap = new Map<string, Set<'primary' | 'redemptive'>>();
     const emailToLinkedInFromInteractions = new Map<string, string>();
     
@@ -190,6 +213,24 @@ export async function GET(request: Request) {
       const sourceMediumField = (record['Source / medium'] || '').toString().toLowerCase();
       // Filter out internal and test sources (consistent with calculate-metrics.ts)
       if (sourceFromLeadList.includes('internal') || sourceMediumField.includes('test')) {
+        return;
+      }
+
+      // Filter by date: only count visits on or after the from date
+      const recordDate = getRecordDate(record);
+      if (!recordDate || recordDate < lastWeekStart) {
+        return;
+      }
+
+      // Filter by medium: only count visits where medium contains "rec" (consistent with LM Performance)
+      const medium = record['Medium'] || 
+                     record['Source / medium'] || 
+                     record['Medium (from Source / medium)'] ||
+                     record['source_medium'] ||
+                     '';
+      const sourceMedium = record['Source / medium'] || record['Source/medium'] || '';
+      const finalMedium = (medium || sourceMedium).trim().toLowerCase();
+      if (!finalMedium || !finalMedium.includes('rec')) {
         return;
       }
 
@@ -215,6 +256,24 @@ export async function GET(request: Request) {
       const sourceMediumField = (record['Source / medium'] || '').toString().toLowerCase();
       // Filter out internal and test sources (consistent with calculate-metrics.ts)
       if (sourceFromLeadList.includes('internal') || sourceMediumField.includes('test')) {
+        return;
+      }
+
+      // Filter by date: only count visits on or after the from date
+      const recordDate = getRecordDate(record);
+      if (!recordDate || recordDate < lastWeekStart) {
+        return;
+      }
+
+      // Filter by medium: only count visits where medium contains "rec" (consistent with LM Performance)
+      const medium = record['Medium'] || 
+                     record['Source / medium'] || 
+                     record['Medium (from Source / medium)'] ||
+                     record['source_medium'] ||
+                     '';
+      const sourceMedium = record['Source / medium'] || record['Source/medium'] || '';
+      const finalMedium = (medium || sourceMedium).trim().toLowerCase();
+      if (!finalMedium || !finalMedium.includes('rec')) {
         return;
       }
 
