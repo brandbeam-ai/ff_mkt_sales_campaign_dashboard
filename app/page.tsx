@@ -293,13 +293,24 @@ function recalculateMetricChanges(metrics: Metric[]): Metric[] {
 }
 
 // Helper function to make API requests with proper error handling
-// This ensures requests work correctly when accessed via domain
+// When accessed via domain, bypasses Nginx and goes directly to the server
 const apiFetch = async (url: string, options?: RequestInit) => {
   try {
-    // Use absolute URL based on current origin (works for both localhost and domain)
-    const baseUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    let baseUrl: string;
+    
+    if (typeof window !== 'undefined') {
+      // If accessed via domain, use direct server IP:port to bypass Nginx
+      if (window.location.hostname === 'mktsaledashboard.11spark.org' || 
+          window.location.hostname.includes('11spark.org')) {
+        baseUrl = 'http://158.247.207.5:3022';
+      } else {
+        // For localhost or other origins, use current origin
+        baseUrl = window.location.origin;
+      }
+    } else {
+      // Server-side: use environment variable or default
+      baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    }
     
     const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
     const response = await fetch(fullUrl, {
