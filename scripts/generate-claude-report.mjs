@@ -35,7 +35,7 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 
 const anthropic = new Anthropic({
-  apiKey: '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',
+  apiKey: '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',
 });
 
 const WEEK_FORMAT = 'dd/MM/yyyy';
