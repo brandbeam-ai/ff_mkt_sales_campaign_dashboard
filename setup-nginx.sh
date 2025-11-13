@@ -53,15 +53,14 @@ server {
     # Client body size (for file uploads)
     client_max_body_size 50M;
     
-    # Buffer sizes for large responses (especially for HTTP/2)
+    # Buffer sizes for large responses
     proxy_buffer_size 128k;
     proxy_buffers 4 256k;
     proxy_busy_buffers_size 256k;
     proxy_temp_file_write_size 256k;
     
-    # HTTP/2 buffer sizes
-    http2_max_field_size 64k;
-    http2_max_header_size 64k;
+    # Large client header buffers
+    large_client_header_buffers 4 64k;
     
     # Enable gzip compression
     gzip on;

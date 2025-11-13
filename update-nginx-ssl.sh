@@ -51,8 +51,9 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
     server_name mktsaledashboard.11spark.org;
 
     # SSL Configuration (Certbot will manage these)
@@ -74,9 +75,8 @@ server {
     proxy_busy_buffers_size 256k;
     proxy_temp_file_write_size 256k;
     
-    # HTTP/2 buffer sizes
-    http2_max_field_size 64k;
-    http2_max_header_size 64k;
+    # Large client header buffers (replaces obsolete http2_max_field_size/http2_max_header_size)
+    large_client_header_buffers 4 64k;
     
     # Enable gzip compression
     gzip on;
