@@ -292,51 +292,6 @@ function recalculateMetricChanges(metrics: Metric[]): Metric[] {
   });
 }
 
-// Helper function to make API requests with proper error handling
-// Always uses localhost with port 3022 (production) or 3000 (development)
-const apiFetch = async (url: string, options?: RequestInit) => {
-  try {
-    // Determine port: use 3022 for production, 3000 for development
-    const apiPort = process.env.NODE_ENV === 'production' || 
-                    (typeof window !== 'undefined' && (window.location.port === '3022' || !window.location.port))
-                      ? '3022' 
-                      : '3000';
-    const baseUrl = `http://localhost:${apiPort}`;
-    
-    const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
-    const response = await fetch(fullUrl, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    return await response.json();
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error(`API request failed for ${url}:`, err);
-    
-    // Provide more helpful error messages for common issues
-    if (errorMessage.includes('ERR_HTTP2_PROTOCOL_ERROR') || errorMessage.includes('Failed to fetch')) {
-      throw new Error(
-        `Network error: Unable to fetch data from server. This may be due to:\n` +
-        `1. Large response size - please check server logs\n` +
-        `2. Network connectivity issues\n` +
-        `3. Server timeout - the response may be too large\n\n` +
-        `Original error: ${errorMessage}`
-      );
-    }
-    
-    throw err;
-  }
-};
-
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -354,7 +309,11 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const result = await apiFetch('/api/funnel-data');
+        const response = await fetch('/api/funnel-data');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const result = await response.json();
         if (result.error) {
           throw new Error(result.error);
         }
@@ -697,7 +656,11 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchClaudeReport() {
       try {
-        const json = await apiFetch('/api/claude-report') as ClaudeReport;
+        const response = await fetch('/api/claude-report');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const json = await response.json() as ClaudeReport;
         setClaudeReport(json);
         lastCheckedWeekRef.current = json.weekRange;
       } catch (error) {
@@ -735,10 +698,17 @@ export default function Dashboard() {
 
       isRegeneratingRef.current = true;
       try {
-        const json = await apiFetch('/api/claude-report', {
+        const response = await fetch('/api/claude-report', {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({ regenerate: true }),
-        }) as ClaudeReport;
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const json = await response.json() as ClaudeReport;
         setClaudeReport(json);
         lastCheckedWeekRef.current = json.weekRange;
       } catch (error) {
@@ -774,7 +744,11 @@ export default function Dashboard() {
         const fromDate = formatDate(weekStartDate);
         const toDate = formatDate(weekEndDate);
         
-        const result = await apiFetch(`/api/lead-magnet-inactive?from=${fromDate}&to=${toDate}`);
+        const response = await fetch(`/api/lead-magnet-inactive?from=${fromDate}&to=${toDate}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const result = await response.json();
         setInactiveLeads(result.leads || []);
       } catch (err) {
         console.error('Error fetching inactive leads:', err);
