@@ -7,7 +7,11 @@ function loadEnvFile() {
   const env = {
     NODE_ENV: 'production',
     PORT: 3022,
-    NEXT_PUBLIC_BASE_URL: 'http://localhost:3022'
+    NEXT_PUBLIC_BASE_URL: 'http://localhost:3022',
+    // These will be loaded from .env.local if it exists
+    AIRTABLE_API_KEY: process.env.AIRTABLE_API_KEY || '',
+    AIRTABLE_BASE_ID: process.env.AIRTABLE_BASE_ID || 'app0YMWSt1LtrGu7S',
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || ''
   };
 
   if (fs.existsSync(envPath)) {
@@ -20,12 +24,20 @@ function loadEnvFile() {
           const value = rest.join('=').trim();
           // Remove quotes if present
           const cleanValue = value.replace(/^["']|["']$/g, '');
-          env[key.trim()] = cleanValue;
+          const cleanKey = key.trim();
+          if (cleanKey && cleanValue) {
+            env[cleanKey] = cleanValue;
+          }
         }
       }
     });
+    console.log('✅ Loaded environment variables from .env.local');
+    console.log(`   AIRTABLE_API_KEY: ${env.AIRTABLE_API_KEY ? '***SET***' : 'NOT SET'}`);
+    console.log(`   AIRTABLE_BASE_ID: ${env.AIRTABLE_BASE_ID || 'default'}`);
+    console.log(`   ANTHROPIC_API_KEY: ${env.ANTHROPIC_API_KEY ? '***SET***' : 'NOT SET'}`);
   } else {
     console.warn('⚠️  .env.local file not found. Make sure to create it with required environment variables.');
+    console.warn('   Required: AIRTABLE_API_KEY, AIRTABLE_BASE_ID, ANTHROPIC_API_KEY');
   }
 
   return env;
