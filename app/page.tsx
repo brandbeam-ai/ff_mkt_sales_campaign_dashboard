@@ -293,24 +293,15 @@ function recalculateMetricChanges(metrics: Metric[]): Metric[] {
 }
 
 // Helper function to make API requests with proper error handling
-// When accessed via domain, bypasses Nginx and goes directly to the server
+// Always uses localhost with port 3022 (production) or 3000 (development)
 const apiFetch = async (url: string, options?: RequestInit) => {
   try {
-    let baseUrl: string;
-    
-    if (typeof window !== 'undefined') {
-      // If accessed via domain, use direct server IP:port to bypass Nginx
-      if (window.location.hostname === 'mktsaledashboard.11spark.org' || 
-          window.location.hostname.includes('11spark.org')) {
-        baseUrl = 'http://158.247.207.5:3022';
-      } else {
-        // For localhost or other origins, use current origin
-        baseUrl = window.location.origin;
-      }
-    } else {
-      // Server-side: use environment variable or default
-      baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    }
+    // Determine port: use 3022 for production, 3000 for development
+    const apiPort = process.env.NODE_ENV === 'production' || 
+                    (typeof window !== 'undefined' && (window.location.port === '3022' || !window.location.port))
+                      ? '3022' 
+                      : '3000';
+    const baseUrl = `http://localhost:${apiPort}`;
     
     const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
     const response = await fetch(fullUrl, {
