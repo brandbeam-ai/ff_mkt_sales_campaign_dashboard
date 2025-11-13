@@ -80,6 +80,7 @@ export async function fetchAndCacheFunnelData() {
             'Source / medium',
             'Source (from Lead list)',
             'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),
@@ -95,6 +96,7 @@ export async function fetchAndCacheFunnelData() {
             'Source / medium',
             'Source (from Lead list)',
             'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),
@@ -116,6 +118,7 @@ export async function fetchAndCacheFunnelData() {
             'Source / medium',
             'Source (from Lead list)',
             'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),

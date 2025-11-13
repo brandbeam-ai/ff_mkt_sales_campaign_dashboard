@@ -127,10 +127,10 @@ export default function MetricCard({
               )}
               {uniqueEmailsOpened !== undefined && (
                 <p>Unique leads opened: {uniqueEmailsOpened.toLocaleString()}</p>
-              )}
-              {uniqueEmailsClicked !== undefined && (
+          )}
+          {uniqueEmailsClicked !== undefined && (
                 <p>Unique leads clicked: {uniqueEmailsClicked.toLocaleString()}</p>
-              )}
+          )}
               {uniqueLeads !== undefined && uniqueEmails === undefined && (
                 <p>Unique leads: {uniqueLeads.toLocaleString()}</p>
               )}

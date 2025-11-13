@@ -299,6 +299,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [activeMarketingTab, setActiveMarketingTab] = useState<MarketingTabId>('emailOutreach');
   const [claudeReport, setClaudeReport] = useState<ClaudeReport | null>(null);
+  const [inactiveLeads, setInactiveLeads] = useState<{ email: string; linkedInUrl: string | null }[]>([]);
+  const [inactiveLeadsLoading, setInactiveLeadsLoading] = useState(false);
   const isRegeneratingRef = useRef(false);
   const lastCheckedWeekRef = useRef<string | undefined>(undefined);
 
@@ -710,6 +712,34 @@ export default function Dashboard() {
 
     ensureFreshReport();
   }, [lastCompletedWeekInfo.label, lastCompletedWeekInfo.weekDate, claudeReport?.weekRange]);
+
+  // Fetch inactive leads (visited but didn't submit) for last week
+  useEffect(() => {
+    async function fetchInactiveLeads() {
+      if (!lastCompletedWeekInfo.weekStart) return;
+      
+      setInactiveLeadsLoading(true);
+      try {
+        // Format date as DD/MM/YYYY for the API
+        const weekDate = parseWeekStart(lastCompletedWeekInfo.weekStart);
+        const formattedDate = `${String(weekDate.getDate()).padStart(2, '0')}/${String(weekDate.getMonth() + 1).padStart(2, '0')}/${weekDate.getFullYear()}`;
+        
+        const response = await fetch(`/api/lead-magnet-inactive?from=${formattedDate}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch inactive leads');
+        }
+        const result = await response.json();
+        setInactiveLeads(result.leads || []);
+      } catch (err) {
+        console.error('Error fetching inactive leads:', err);
+        setInactiveLeads([]);
+      } finally {
+        setInactiveLeadsLoading(false);
+      }
+    }
+
+    fetchInactiveLeads();
+  }, [lastCompletedWeekInfo.weekStart]);
 
   const linkedinSummaryCards = useMemo<SummaryCard[]>(() => {
     const cards: SummaryCard[] = [];
@@ -1324,6 +1354,78 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <p className="text-gray-500">No LinkedIn DM data available.</p>
+              )}
+            </section>
+
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Lead Magnet Inactive Leads{lastCompletedWeekInfo.label ? ` (${lastCompletedWeekInfo.label})` : ''}
+                </h3>
+                <span className="text-xs text-gray-500">Visited but didn't submit</span>
+              </div>
+              <details className="border border-gray-200 rounded-lg mb-4">
+                <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none px-4 py-3">
+                  About Inactive Leads
+                </summary>
+                <div className="px-4 pb-4">
+                  <InfoBox title="About Inactive Leads">
+                    <p className="text-sm text-gray-700">
+                      This list shows leads who visited either the primary or redemptive lead magnet sites but have never submitted a deck analysis. 
+                      These are potential leads to re-engage with follow-up outreach.
+                    </p>
+                  </InfoBox>
+                </div>
+              </details>
+              {inactiveLeadsLoading ? (
+                <div className="text-center py-8 text-gray-500">Loading inactive leads...</div>
+              ) : inactiveLeads.length > 0 ? (
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            LinkedIn
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {inactiveLeads.map((lead, index) => (
+                          <tr key={`inactive-lead-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {lead.email}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {lead.linkedInUrl ? (
+                                <a
+                                  href={lead.linkedInUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-indigo-600 hover:text-indigo-800 hover:underline"
+                                >
+                                  View Profile
+                                </a>
+                              ) : (
+                                <span className="text-gray-400">Not available</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
+                    <p className="text-sm text-gray-600">
+                      Total: <span className="font-semibold">{inactiveLeads.length}</span> leads
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500">No inactive leads found for this week.</p>
               )}
             </section>
           </div>

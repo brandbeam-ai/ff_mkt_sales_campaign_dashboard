@@ -130,6 +130,7 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Source / medium',
             'Source (from Lead list)',
             'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),
@@ -145,6 +146,7 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Source / medium',
             'Source (from Lead list)',
             'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),
@@ -166,6 +168,7 @@ if (!process.env.AIRTABLE_API_KEY) {
             'Source / medium',
             'Source (from Lead list)',
             'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),

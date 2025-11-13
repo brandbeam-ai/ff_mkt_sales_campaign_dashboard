@@ -91,22 +91,22 @@ export default function DMDetailsSection({ details }: DMDetailsSectionProps) {
           <p className="text-xs text-gray-500 mt-2">No data</p>
         </div>
       );
-    }
+  }
 
-    return (
+  return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <h4 className="text-sm font-semibold text-gray-700 mb-2">Total Messages by Me - {label}</h4>
           <p className="text-3xl font-bold text-blue-600">{weekDetails.totalMessagesByMe}</p>
           <p className="text-xs text-gray-500 mt-2">{formatWeekRange(weekDetails.week)}</p>
         </div>
-
+        
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <h4 className="text-sm font-semibold text-gray-700 mb-2">Total Messages by Correspondent - {label}</h4>
           <p className="text-3xl font-bold text-green-600">{weekDetails.totalMessagesByCorrespondent}</p>
           <p className="text-xs text-gray-500 mt-2">{formatWeekRange(weekDetails.week)}</p>
         </div>
-
+        
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <h4 className="text-sm font-semibold text-gray-700 mb-2">Total Conversations - {label}</h4>
           <p className="text-3xl font-bold text-purple-600">{weekDetails.totalConversations}</p>
@@ -136,34 +136,34 @@ export default function DMDetailsSection({ details }: DMDetailsSectionProps) {
               All Conversations - {formatWeekRange(weekDetails.week)}
             </summary>
             {weekDetails.conversations.length === 0 ? (
-              <p className="text-gray-500">No conversations found for this week</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Conversation ID
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total Messages
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        By Me
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        By Correspondent
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+            <p className="text-gray-500">No conversations found for this week</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Conversation ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Messages
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      By Me
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      By Correspondent
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
                     {weekDetails.conversations
-                      .sort((a, b) => b.totalMessages - a.totalMessages)
-                      .map((conversation, index) => (
+                    .sort((a, b) => b.totalMessages - a.totalMessages)
+                    .map((conversation, index) => (
                         <tr key={`${label}-${conversation.conversationId}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-4 py-3 text-sm font-mono text-gray-900 break-all">
+                        <td className="px-4 py-3 text-sm font-mono text-gray-900 break-all">
                             <div>
-                              {conversation.conversationId}
+                          {conversation.conversationId}
                             </div>
                             {(conversation.leadFirstName || conversation.leadUrl) && (
                               <div className="text-xs text-gray-500 mt-1 space-x-1">
@@ -180,22 +180,22 @@ export default function DMDetailsSection({ details }: DMDetailsSectionProps) {
                                 )}
                               </div>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-semibold text-gray-900">
-                            {conversation.totalMessages}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-blue-600 font-medium">
-                            {conversation.messagesByMe}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-green-600 font-medium">
-                            {conversation.messagesByCorrespondent}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                          {conversation.totalMessages}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-blue-600 font-medium">
+                          {conversation.messagesByMe}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-green-600 font-medium">
+                          {conversation.messagesByCorrespondent}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           </details>
         </div>
       </div>

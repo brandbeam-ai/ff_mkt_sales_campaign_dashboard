@@ -67,7 +67,7 @@ export default function MetricChart({
   }
 
   const sortedMetrics = [...metrics].sort((a, b) => sortWeeksChronologically(a.week, b.week));
-
+  
   const actualCurrentWeek = getCurrentWeekStart();
   let actualCurrentWeekDate: Date | null = null;
   try {
@@ -78,12 +78,12 @@ export default function MetricChart({
 
   let filteredMetrics = actualCurrentWeekDate
     ? sortedMetrics.filter((metric) => {
-        try {
-          const metricWeekDate = parseWeekStart(metric.week);
+    try {
+      const metricWeekDate = parseWeekStart(metric.week);
           return metricWeekDate < actualCurrentWeekDate!;
-        } catch {
-          return false;
-        }
+    } catch {
+      return false;
+    }
       })
     : sortedMetrics;
 
@@ -106,7 +106,7 @@ export default function MetricChart({
   }
 
   weeksToPlot = Array.from(new Set(weeksToPlot));
-
+  
   const chartData = weeksToPlot
     .map((week) => {
       const metric =
@@ -141,14 +141,14 @@ export default function MetricChart({
         week: formatWeekRange(week),
         weekStart: week,
         value,
-        percentage: metric.percentage || 0,
-        clicked: metric.clicked || 0,
+    percentage: metric.percentage || 0,
+    clicked: metric.clicked || 0,
         uniqueEmails: uniqueEmails ?? null,
         uniqueEmailsOpened: uniqueEmailsOpened ?? null,
         uniqueEmailsClicked: uniqueEmailsClicked ?? null,
-        uniqueLeads: metric.uniqueLeads || 0,
-        previousWeek: metric.previousWeek || 0,
-        change: metric.change || 0,
+    uniqueLeads: metric.uniqueLeads || 0,
+    previousWeek: metric.previousWeek || 0,
+    change: metric.change || 0,
       };
     })
     .filter((data, index, arr) => index === arr.findIndex((d) => d.weekStart === data.weekStart));
@@ -203,7 +203,7 @@ export default function MetricChart({
         }}
         formatter={(value: number, name: string, props?: { payload?: { uniqueEmailsOpened?: number; uniqueEmailsClicked?: number } }) => {
           const payload = props?.payload || {};
-
+          
           if (formatValue && typeof value === 'number') {
             return formatValue(value);
           }
@@ -274,7 +274,7 @@ export default function MetricChart({
                 </div>
               );
             }
-
+            
             return (
               <div
                 style={{

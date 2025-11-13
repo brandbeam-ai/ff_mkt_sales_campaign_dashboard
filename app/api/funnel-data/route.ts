@@ -26,7 +26,7 @@ export async function GET() {
           },
           { status: 500 }
         );
-      }
+    }
     }
 
     // Only import Airtable if we need to fetch from it
@@ -101,6 +101,9 @@ export async function GET() {
             'Week start of report date',
             'Medium',
             'Source / medium',
+            'Source (from Lead list)',
+            'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),
@@ -120,6 +123,9 @@ export async function GET() {
             'Week start of report date',
             'Medium',
             'Source / medium',
+            'Source (from Lead list)',
+            'Email (from Lead list)',
+            'Lead Linkedin Url (from Lead list)',
           ],
         })
         .all(),
