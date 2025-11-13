@@ -292,6 +292,36 @@ function recalculateMetricChanges(metrics: Metric[]): Metric[] {
   });
 }
 
+// Helper function to make API requests with proper error handling
+// This ensures requests work correctly when accessed via domain
+const apiFetch = async (url: string, options?: RequestInit) => {
+  try {
+    // Use absolute URL based on current origin (works for both localhost and domain)
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    
+    const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+    const response = await fetch(fullUrl, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error(`API request failed for ${url}:`, err);
+    throw err;
+  }
+};
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -299,23 +329,24 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [activeMarketingTab, setActiveMarketingTab] = useState<MarketingTabId>('emailOutreach');
   const [claudeReport, setClaudeReport] = useState<ClaudeReport | null>(null);
+  const [claudeReportLoading, setClaudeReportLoading] = useState(true);
   const [inactiveLeads, setInactiveLeads] = useState<{ email: string; linkedInUrl: string | null }[]>([]);
-  const [inactiveLeadsLoading, setInactiveLeadsLoading] = useState(false);
+  const [inactiveLeadsLoading, setInactiveLeadsLoading] = useState(true);
   const isRegeneratingRef = useRef(false);
   const lastCheckedWeekRef = useRef<string | undefined>(undefined);
 
+  // Fetch main funnel data
   useEffect(() => {
     async function fetchData() {
       try {
-        const response = await fetch('/api/funnel-data');
-        if (!response.ok) {
-          throw new Error('Failed to fetch data');
+        const result = await apiFetch('/api/funnel-data');
+        if (result.error) {
+          throw new Error(result.error);
         }
-        const result = await response.json();
         setData(result);
-        setLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data');
+      } finally {
         setLoading(false);
       }
     }
@@ -647,19 +678,18 @@ export default function Dashboard() {
     dmMetrics,
   ]);
 
+  // Fetch Claude report
   useEffect(() => {
     async function fetchClaudeReport() {
       try {
-        const res = await fetch('/api/claude-report');
-        if (!res.ok) {
-          throw new Error('Failed to fetch Claude report');
-        }
-        const json = (await res.json()) as ClaudeReport;
+        const json = await apiFetch('/api/claude-report') as ClaudeReport;
         setClaudeReport(json);
         lastCheckedWeekRef.current = json.weekRange;
       } catch (error) {
         console.warn('Unable to load Claude report:', error);
         setClaudeReport(null);
+      } finally {
+        setClaudeReportLoading(false);
       }
     }
 
@@ -690,17 +720,10 @@ export default function Dashboard() {
 
       isRegeneratingRef.current = true;
       try {
-        const res = await fetch('/api/claude-report', {
+        const json = await apiFetch('/api/claude-report', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ regenerate: true }),
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to regenerate Claude report');
-        }
-
-        const json = (await res.json()) as ClaudeReport;
+        }) as ClaudeReport;
         setClaudeReport(json);
         lastCheckedWeekRef.current = json.weekRange;
       } catch (error) {
@@ -716,7 +739,10 @@ export default function Dashboard() {
   // Fetch inactive leads (visited but didn't submit) for last week
   useEffect(() => {
     async function fetchInactiveLeads() {
-      if (!lastCompletedWeekInfo.weekStart) return;
+      if (!lastCompletedWeekInfo.weekStart) {
+        setInactiveLeadsLoading(false);
+        return;
+      }
       
       setInactiveLeadsLoading(true);
       try {
@@ -733,11 +759,7 @@ export default function Dashboard() {
         const fromDate = formatDate(weekStartDate);
         const toDate = formatDate(weekEndDate);
         
-        const response = await fetch(`/api/lead-magnet-inactive?from=${fromDate}&to=${toDate}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch inactive leads');
-        }
-        const result = await response.json();
+        const result = await apiFetch(`/api/lead-magnet-inactive?from=${fromDate}&to=${toDate}`);
         setInactiveLeads(result.leads || []);
       } catch (err) {
         console.error('Error fetching inactive leads:', err);
@@ -1637,11 +1659,19 @@ export default function Dashboard() {
     ]
   );
 
-  if (loading) {
+  // Show loading screen until all critical data is loaded
+  if (loading || claudeReportLoading || inactiveLeadsLoading || !data || data.error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8 text-gray-900">Loading dashboard...</h1>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900">Loading dashboard...</h1>
+          <p className="text-gray-600 text-sm">
+            {loading && 'Fetching funnel data...'}
+            {!loading && claudeReportLoading && 'Loading Claude analysis...'}
+            {!loading && !claudeReportLoading && inactiveLeadsLoading && 'Loading inactive leads...'}
+            {!loading && !claudeReportLoading && !inactiveLeadsLoading && data?.error && 'Error loading data'}
+          </p>
         </div>
       </div>
     );
