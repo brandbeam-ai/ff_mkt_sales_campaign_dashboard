@@ -49,6 +49,7 @@ next-env.d.ts
 
 # PM2 ecosystem config (contains environment-specific settings)
 ecosystem.config.js
+ecosystem-backup.config.js
 
 # Cron scripts (keep update-cache-cron.sh in git, but ignore if auto-generated)
 # update-cache-cron.sh
