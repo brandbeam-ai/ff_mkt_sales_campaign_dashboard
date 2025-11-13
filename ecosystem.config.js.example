@@ -9,9 +9,10 @@ function loadEnvFile() {
     PORT: 3022,
     NEXT_PUBLIC_BASE_URL: 'http://localhost:3022',
     // These will be loaded from .env.local if it exists
-    AIRTABLE_API_KEY: process.env.AIRTABLE_API_KEY || 'patYAN59CPUdH96f7.6b6cd24b2ded7c8b655600520f87e75066dfea369f04af7d54022db1017ed7af',
+    // DO NOT hardcode API keys here - they must be in .env.local
+    AIRTABLE_API_KEY: process.env.AIRTABLE_API_KEY || '',
     AIRTABLE_BASE_ID: process.env.AIRTABLE_BASE_ID || 'app0YMWSt1LtrGu7S',
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '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'
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || ''
   };
 
   if (fs.existsSync(envPath)) {
