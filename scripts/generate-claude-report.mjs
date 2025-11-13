@@ -35,7 +35,7 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 
 const anthropic = new Anthropic({
-  apiKey: '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',
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 const WEEK_FORMAT = 'dd/MM/yyyy';
