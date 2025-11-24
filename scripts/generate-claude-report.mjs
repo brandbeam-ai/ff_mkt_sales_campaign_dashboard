@@ -22,7 +22,7 @@ function loadEnv() {
         process.env[key] = value;
       }
     });
-  } catch (error) {
+  } catch {
     // Silently ignore if file not found; env vars may be set elsewhere.
   }
 }
@@ -225,55 +225,6 @@ const safeWoW = (current, previous) => {
       tags.some((tag) => tag.includes('nurture') || tag.includes('win-back') || tag.includes('general nurture'))
     );
 
-    const filterLeadMagnetRecords = () =>
-      deckAnalysis.filter((record) => {
-        if (weekField(record) !== lastWeek) return false;
-        const source = (record['Source (from Lead list)'] || '').toString().toLowerCase();
-        const medium = (record['Source / medium'] || '').toString().toLowerCase();
-        if (source.includes('internal') || medium.includes('test')) return false;
-        return true;
-      });
-
-    const leadMagnetSessionsLastWeek = filterLeadMagnetRecords();
-    const leadMagnetSessionsPrevWeek = deckAnalysis.filter((record) => weekField(record) === previousWeek);
-
-    const uniqueMediums = (records) => {
-      const set = new Set();
-      records.forEach((record) => {
-        const medium =
-          record['Medium'] ||
-          record['Source / medium'] ||
-          record['Medium (from Source / medium)'] ||
-          record.source_medium ||
-          '';
-        if (typeof medium === 'string' && medium.toLowerCase().includes('rec')) {
-          set.add(medium.trim());
-        }
-      });
-      return set;
-    };
-
-    const durationBuckets = (records) => {
-      const over20 = new Set();
-      const under10 = new Set();
-      records.forEach((record) => {
-        const emailRaw = record['Email (from Lead list)'];
-        const email = Array.isArray(emailRaw)
-          ? (emailRaw.find((value) => value) || '').toString().trim().toLowerCase()
-          : (emailRaw || '').toString().trim().toLowerCase();
-        if (!email) return;
-        const duration = Number(record['Session Duration (second)'] || 0);
-        if (duration > 20) {
-          over20.add(email);
-        } else if (duration > 0 && duration < 10) {
-          under10.add(email);
-        }
-      });
-      return { over20, under10 };
-    };
-
-    const leadMagnetDurationLastWeekBuckets = durationBuckets(leadMagnetSessionsLastWeek);
-    const leadMagnetDurationPrevBuckets = durationBuckets(leadMagnetSessionsPrevWeek);
 
     const leadMagnetSubmissionsLastWeek = new Set();
     const leadMagnetSubmissionsPrev = new Set();
@@ -345,25 +296,10 @@ const safeWoW = (current, previous) => {
       },
       leadMagnet: {
         uniqueSubmissions: leadMagnetSubmissionsLastWeek.size,
-        uniqueVisitors: uniqueMediums(leadMagnetSessionsLastWeek).size,
-        leadsOver20s: leadMagnetDurationLastWeekBuckets.over20.size,
-        leadsUnder10s: leadMagnetDurationLastWeekBuckets.under10.size,
         woWChange: {
           submissions: safeWoW(
             leadMagnetSubmissionsLastWeek.size,
             leadMagnetSubmissionsPrev.size
-          ),
-          visitors: safeWoW(
-            uniqueMediums(leadMagnetSessionsLastWeek).size,
-            uniqueMediums(leadMagnetSessionsPrevWeek).size
-          ),
-          over20s: safeWoW(
-            leadMagnetDurationLastWeekBuckets.over20.size,
-            leadMagnetDurationPrevBuckets.over20.size
-          ),
-          under10s: safeWoW(
-            leadMagnetDurationLastWeekBuckets.under10.size,
-            leadMagnetDurationPrevBuckets.under10.size
           ),
         },
       },
@@ -464,7 +400,7 @@ ${JSON.stringify(claudeInput, null, 2)}`;
     let analysis;
     try {
       analysis = JSON.parse(jsonPayload);
-    } catch (error) {
+    } catch {
       throw new Error(`Failed to parse Claude response as JSON. Raw response: ${textContent}`);
     }
 
