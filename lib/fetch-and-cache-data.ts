@@ -102,7 +102,7 @@ export async function fetchAndCacheFunnelData() {
         .all(),
       base('deck analysis reports')
         .select({
-          fields: ['Email', 'Report date', 'Week start of report date'],
+          fields: ['Email', 'Report date', 'Week start of report date', 'Source (from Lead list)'],
         })
         .all(),
       base('FF website interaction')

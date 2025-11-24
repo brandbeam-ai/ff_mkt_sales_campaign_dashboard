@@ -917,10 +917,10 @@ export function calculateLeadMagnetMetrics(
   deckReports.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const email = record['Email'] || '';
-
     if (!weekStart) return;
 
     const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().toLowerCase();
+
     if (sourceFromLeadList.includes('internal')) {
       return;
     }
