@@ -232,6 +232,16 @@ const safeWoW = (current, previous) => {
       const week = weekField(record);
       const email = (record.Email || '').toString().trim().toLowerCase();
       if (!email) return;
+
+      // Exclude records where "Source (from Lead list)" is "Internal"
+      const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().trim();
+      const sourceFromLeadListLower = sourceFromLeadList.toLowerCase();
+
+      // Do NOT include records where "Source (from Lead list)" is "Internal"
+      if (sourceFromLeadListLower === 'internal' || sourceFromLeadListLower.includes('internal')) {
+        return;
+      }
+
       if (week === lastWeek) leadMagnetSubmissionsLastWeek.add(email);
       if (week === previousWeek) leadMagnetSubmissionsPrev.add(email);
     });
