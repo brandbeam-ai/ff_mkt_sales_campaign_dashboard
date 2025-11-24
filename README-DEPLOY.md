@@ -208,7 +208,13 @@ sudo systemctl restart nginx
 
 ## Schedule Daily Cache Updates
 
-The deployment script (`deploy.sh`) **automatically sets up a daily cron job** to update the cache at 2:00 AM. No manual setup needed!
+The deployment script (`deploy.sh`) **automatically sets up a daily cron job** to update the cache at 2:00 AM.
+
+For weekly report generation, run the separate setup script:
+```bash
+./setup-scheduler.sh
+```
+This sets up a cron job to run every Monday at 00:05 AM.
 
 ### Automatic Setup (Recommended)
 

@@ -57,7 +57,7 @@ function calculateEmailMetricsBySequence(
   sentEmailLog.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const sequence = record['Sequence'] || '';
-    
+
     if (!weekStart || !sequenceFilter(sequence)) return;
 
     if (!weekMap.has(weekStart)) {
@@ -85,14 +85,14 @@ function calculateEmailMetricsBySequence(
   // Note: If a lead receives multiple emails in the same week, they will have multiple records
   // in sentEmailLog. The Set automatically deduplicates, so uniqueEmails will be <= data.sent
   const uniqueEmailMap = new Map<string, Set<string>>();
-  
+
   sentEmailLog.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const email = record['Email'] || '';
     const sequence = record['Sequence'] || '';
-    
+
     if (!weekStart || !email || !sequenceFilter(sequence)) return;
-    
+
     if (!uniqueEmailMap.has(weekStart)) {
       uniqueEmailMap.set(weekStart, new Set<string>());
     }
@@ -171,9 +171,9 @@ export function calculateNurtureEmailMetrics(
     emailInteractions,
     (sequence) => {
       const seqLower = (sequence || '').toLowerCase();
-      return seqLower.includes('nurture') || 
-             seqLower.includes('win-back') ||
-             seqLower === 'general nurture';
+      return seqLower.includes('nurture') ||
+        seqLower.includes('win-back') ||
+        seqLower === 'general nurture';
     }
   );
 }
@@ -188,7 +188,7 @@ function calculateEmailInteractionMetricsByTag(
   emailInteractions.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const mailgunTag = record['mailgun_tags'] || '';
-    
+
     if (!weekStart || !tagFilter(mailgunTag)) return;
 
     if (!weekMap.has(weekStart)) {
@@ -220,7 +220,7 @@ function calculateEmailInteractionMetricsByTag(
     const mailgunTag = record['mailgun_tags'] || '';
     const event = record['Event']?.toLowerCase() || '';
     const clickLink = record['Click link'] || '';
-    
+
     if (!weekStart || !email || !tagFilter(mailgunTag)) return;
 
     if (!uniqueEmailMap.has(weekStart)) {
@@ -336,9 +336,9 @@ export function calculateOutreachEmailInteractionMetrics(
     emailInteractions,
     (tag) => {
       const tagLower = (tag || '').toLowerCase();
-      return tagLower.includes('outreach') || 
-             tagLower.includes('mkt outreach') ||
-             tagLower === 'outreach';
+      return tagLower.includes('outreach') ||
+        tagLower.includes('mkt outreach') ||
+        tagLower === 'outreach';
     }
   );
 }
@@ -351,9 +351,9 @@ export function calculateNurtureEmailInteractionMetrics(
     emailInteractions,
     (tag) => {
       const tagLower = (tag || '').toLowerCase();
-      return tagLower.includes('nurture') || 
-             tagLower.includes('win-back') ||
-             tagLower === 'nurture';
+      return tagLower.includes('nurture') ||
+        tagLower.includes('win-back') ||
+        tagLower === 'nurture';
     }
   );
 }
@@ -380,8 +380,8 @@ export function calculateAnalysisResultEmailInteractionMetrics(
 }
 
 export function calculateDMMetrics(linkedinDMLog: any[]): Metric[] {
-  const weekMap = new Map<string, { 
-    conversations: Set<string>; 
+  const weekMap = new Map<string, {
+    conversations: Set<string>;
     repliedConversations: Set<string>;
   }>();
 
@@ -394,7 +394,7 @@ export function calculateDMMetrics(linkedinDMLog: any[]): Metric[] {
     const weekStart = record['Week start of report date'];
     const conversationId = record['Conversation_id'];
     const sender = record['Sender']?.trim() || '';
-    
+
     if (!weekStart || !conversationId) return;
 
     // Track unique conversations per week
@@ -444,7 +444,7 @@ export function calculateDMMetrics(linkedinDMLog: any[]): Metric[] {
       const dmed = data.conversations.size;
       const replied = data.repliedConversations.size;
       const noReply = dmed - replied;
-      
+
       return {
         week,
         value: dmed,
@@ -609,7 +609,7 @@ export function calculateDMFollowupMetrics(linkedinDMLog: any[]): Metric[] {
 // Helper function to calculate week start from Created date if Week start of report date is missing
 function getWeekStart(record: any): string | null {
   let weekStart = record['Week start of report date'];
-  
+
   // If no week start, try to calculate from Created date
   if (!weekStart && record['Created']) {
     const createdDate = new Date(record['Created']);
@@ -626,7 +626,7 @@ function getWeekStart(record: any): string | null {
       });
     }
   }
-  
+
   return weekStart || null;
 }
 
@@ -639,7 +639,7 @@ export function calculateLeadMagnetLeads(leadList: any[]): Metric[] {
   leadList.forEach((record) => {
     const source = record['Source'];
     const weekStart = getWeekStart(record);
-    
+
     if (!weekStart) return;
 
     // Filter for Lead Magnet leads
@@ -682,7 +682,7 @@ export function calculateBookACallLeads(leadList: any[]): Metric[] {
   leadList.forEach((record) => {
     const source = record['Source'];
     const weekStart = getWeekStart(record);
-    
+
     if (!weekStart) return;
 
     // Filter for Book a Call leads
@@ -726,7 +726,7 @@ export function calculateOrganicLeads(leadList: any[]): Metric[] {
   leadList.forEach((record) => {
     const source = record['Source'];
     const weekStart = getWeekStart(record);
-    
+
     if (!weekStart) return;
 
     // Filter for organic leads (Lead magnet or Book a call)
@@ -868,12 +868,12 @@ export function calculateLeadMagnetMetrics(
 
     // Track unique mediums where medium contains "rec"
     // Try multiple possible field names
-    const medium = record['Medium'] || 
-                   record['Source / medium'] || 
-                   record['Medium (from Source / medium)'] ||
-                   record['source_medium'] ||
-                   '';
-    
+    const medium = record['Medium'] ||
+      record['Source / medium'] ||
+      record['Medium (from Source / medium)'] ||
+      record['source_medium'] ||
+      '';
+
     // Also check if there's a Source/medium format in the data
     const sourceMedium = record['Source / medium'] || record['Source/medium'] || '';
     const finalMedium = (medium || sourceMedium).trim();
@@ -917,16 +917,21 @@ export function calculateLeadMagnetMetrics(
   deckReports.forEach((record) => {
     const weekStart = record['Week start of report date'];
     const email = record['Email'] || '';
-    
+
     if (!weekStart) return;
+
+    const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().toLowerCase();
+    if (sourceFromLeadList.includes('internal')) {
+      return;
+    }
 
     if (!submissionWeekMap.has(weekStart)) {
       submissionWeekMap.set(weekStart, { submissions: 0, uniqueLeads: new Map<string, { count: number; display: string }>() });
     }
-    
+
     const weekData = submissionWeekMap.get(weekStart)!;
     weekData.submissions++;
-    
+
     if (email) {
       const emailKey = email.toString().trim().toLowerCase();
       const existing = weekData.uniqueLeads.get(emailKey);
@@ -1062,10 +1067,10 @@ export function calculateSalesFunnelMetrics(
   ffInteractions: any[],
   bookACall: any[]
 ): { landed: Metric[]; avgDuration: Metric[]; clicks: Metric[]; clickToLanded: Metric[]; uniqueVisits: Metric[] } {
-  const landedWeekMap = new Map<string, { 
-    count: number; 
-    totalDuration: number; 
-    sessions: number; 
+  const landedWeekMap = new Map<string, {
+    count: number;
+    totalDuration: number;
+    sessions: number;
     clicks: number;
     uniqueMediums: Set<string>; // Track unique mediums where medium contains "rec"
     leadEmails: Map<string, Set<string>>;
@@ -1113,10 +1118,10 @@ export function calculateSalesFunnelMetrics(
     }
 
     if (!landedWeekMap.has(weekStart)) {
-      landedWeekMap.set(weekStart, { 
-        count: 0, 
-        totalDuration: 0, 
-        sessions: 0, 
+      landedWeekMap.set(weekStart, {
+        count: 0,
+        totalDuration: 0,
+        sessions: 0,
         clicks: 0,
         uniqueMediums: new Set<string>(),
         leadEmails: new Map<string, Set<string>>(),
@@ -1139,16 +1144,16 @@ export function calculateSalesFunnelMetrics(
 
     // Track unique mediums where medium contains "rec"
     // Try multiple possible field names
-    const medium = record['Medium'] || 
-                   record['Source / medium'] || 
-                   record['Medium (from Source / medium)'] ||
-                   record['source_medium'] ||
-                   '';
-    
+    const medium = record['Medium'] ||
+      record['Source / medium'] ||
+      record['Medium (from Source / medium)'] ||
+      record['source_medium'] ||
+      '';
+
     // Also check if there's a Source/medium format in the data
     const sourceMedium = record['Source / medium'] || record['Source/medium'] || '';
     const finalMedium = (medium || sourceMedium).trim(); // Trim whitespace
-    
+
     const mediumLower = finalMedium.toLowerCase();
     // Check if medium contains "rec" (case-insensitive, after trimming)
     if (mediumLower && mediumLower.includes('rec')) {
