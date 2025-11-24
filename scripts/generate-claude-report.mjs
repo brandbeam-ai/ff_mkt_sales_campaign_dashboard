@@ -236,6 +236,41 @@ const safeWoW = (current, previous) => {
       if (week === previousWeek) leadMagnetSubmissionsPrev.add(email);
     });
 
+    const uniqueMediums = (records) => {
+      const set = new Set();
+      records.forEach((record) => {
+        const medium =
+          record['Medium'] ||
+          record['Source / medium'] ||
+          record['Medium (from Source / medium)'] ||
+          record.source_medium ||
+          '';
+        if (typeof medium === 'string' && medium.toLowerCase().includes('rec')) {
+          set.add(medium.trim());
+        }
+      });
+      return set;
+    };
+
+    const durationBuckets = (records) => {
+      const over20 = new Set();
+      const under10 = new Set();
+      records.forEach((record) => {
+        const emailRaw = record['Email (from Lead list)'];
+        const email = Array.isArray(emailRaw)
+          ? (emailRaw.find((value) => value) || '').toString().trim().toLowerCase()
+          : (emailRaw || '').toString().trim().toLowerCase();
+        if (!email) return;
+        const duration = Number(record['Session Duration (second)'] || 0);
+        if (duration > 20) {
+          over20.add(email);
+        } else if (duration > 0 && duration < 10) {
+          under10.add(email);
+        }
+      });
+      return { over20, under10 };
+    };
+
     const ffSessionsLastWeek = ffInteractions.filter((record) => weekField(record) === lastWeek);
     const ffSessionsPrevWeek = ffInteractions.filter((record) => weekField(record) === previousWeek);
 
