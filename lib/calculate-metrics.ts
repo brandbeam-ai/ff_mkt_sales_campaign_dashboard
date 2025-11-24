@@ -793,9 +793,13 @@ export function calculateLeadMagnetMetrics(
     const weekStart = record['Week start of report date'];
     if (!weekStart) return;
 
-    const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().toLowerCase();
+    // Exclude records where "Source (from Lead list)" is "Internal"
+    const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().trim();
+    const sourceFromLeadListLower = sourceFromLeadList.toLowerCase();
     const sourceMediumField = (record['Source / medium'] || '').toString().toLowerCase();
-    if (sourceFromLeadList.includes('internal') || sourceMediumField.includes('test')) {
+    
+    // Do NOT include records where "Source (from Lead list)" is "Internal"
+    if (sourceFromLeadListLower === 'internal' || sourceFromLeadListLower.includes('internal') || sourceMediumField.includes('test')) {
       return;
     }
 
@@ -919,9 +923,12 @@ export function calculateLeadMagnetMetrics(
     const email = record['Email'] || '';
     if (!weekStart) return;
 
-    const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().toLowerCase();
+    // Exclude records where "Source (from Lead list)" is "Internal"
+    const sourceFromLeadList = (record['Source (from Lead list)'] || '').toString().trim();
+    const sourceFromLeadListLower = sourceFromLeadList.toLowerCase();
 
-    if (sourceFromLeadList.includes('internal')) {
+    // Do NOT include records where "Source (from Lead list)" is "Internal"
+    if (sourceFromLeadListLower === 'internal' || sourceFromLeadListLower.includes('internal')) {
       return;
     }
 
